@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Roboto", sans-serif;
+  --font-serif: "Oswald", sans-serif;
+
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-purple-hover: var(--brand-purple-hover);
+  --color-brand-purple-light: var(--brand-purple-light);
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-lime-hover: var(--brand-lime-hover);
+  --color-brand-lime-dark: var(--brand-lime-dark);
+  --color-brand-lime-light: var(--brand-lime-light);
+
+  --color-bg-app: var(--bg-app);
+  --color-bg-card: var(--bg-card);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-border-main: var(--border-main);
+}
+
+:root {
+  --font-sans: "Roboto", sans-serif;
+  --font-serif: "Oswald", sans-serif;
+
+  --brand-purple: #480A94;
+  --brand-purple-hover: #350670;
+  --brand-purple-light: rgba(72, 10, 148, 0.08);
+  --brand-lime: #9ECD33;
+  --brand-lime-hover: #8cb72a;
+  --brand-lime-dark: #435b12; /* Accessible text color */
+  --brand-lime-light: rgba(158, 205, 51, 0.15);
+
+  --bg-app: #f8fafc; /* Premium slate-50 instead of f1f2f6 */
+  --bg-card: #ffffff;
+  --bg-sidebar: #ffffff;
+  --text-main: #0f172a; /* Premium slate-900 instead of 1a1a1b */
+  --text-muted: #475569; /* Slate-600 (very high accessibility contrast) instead of 7f8c8d */
+  --border-main: #e2e8f0; /* Slate-200 instead of dcdde1 */
+}
+
+/* Surcharges globales pour le thème clair (amélioration des contrastes) */
+.text-\[\#7F8C8D\] {
+  color: var(--text-muted) !important;
+}
+
+.text-\[\#2D3436\] {
+  color: var(--text-main) !important;
+}
+
+.border-\[\#DCDDE1\] {
+  border-color: var(--border-main) !important;
+}
+
+.bg-\[\#F1F2F6\] {
+  background-color: var(--bg-app) !important;
+}
+
+.bg-\[\#F8F9FA\] {
+  background-color: #f1f5f9 !important; /* Soft slate background */
+}
+
+.dark {
+  --brand-purple: #a881eb; /* Lighter purple for dark mode text contrast */
+  --brand-purple-hover: #bd9bff;
+  --brand-purple-light: rgba(168, 129, 235, 0.15);
+  --brand-lime: #a3e635; /* Brighter lime-400 for high accessibility contrast */
+  --brand-lime-hover: #bef264;
+  --brand-lime-dark: #a3e635;
+  --brand-lime-light: rgba(163, 230, 53, 0.2);
+
+  --bg-app: #0f172a; /* slate-900 */
+  --bg-card: #1e293b; /* slate-800 */
+  --bg-sidebar: #1e293b;
+  --text-main: #f8fafc; /* slate-50 */
+  --text-muted: #94a3b8; /* slate-400 */
+  --border-main: #334155; /* slate-700 */
+}
+
+/* Surcharges de cohérence pour le mode sombre */
+.dark .bg-white,
+.dark .bg-\[\#FFFFFF\] {
+  background-color: var(--bg-card) !important;
+}
+
+.dark .bg-\[\#F8F9FA\],
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: var(--bg-app) !important;
+}
+
+.dark .bg-\[\#F1F2F6\] {
+  background-color: var(--bg-app) !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-slate-100,
+.dark .border-\[\#DCDDE1\] {
+  border-color: var(--border-main) !important;
+}
+
+.dark .divide-\[\#F1F2F6\] > * + *,
+.dark .divide-\[\#DCDDE1\] > * + * {
+  border-color: var(--border-main) !important;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-850,
+.dark .text-\[\#1A1A1B\],
+.dark .text-\[\#2D3436\],
+.dark .text-slate-700 {
+  color: var(--text-main) !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-\[\#7F8C8D\] {
+  color: var(--text-muted) !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-main) !important;
+}
+
+.dark #detail-pane,
+.dark #tab-export,
+.dark #portables-layout,
+.dark #desktops-layout,
+.dark #iphone-layout {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-main) !important;
+}
+
+.dark #validation-panel {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-main) !important;
+}
+
+.dark #validation-panel .bg-\[\#F1F2F6\],
+.dark #validation-panel .bg-slate-50 {
+  background-color: var(--bg-card) !important;
+  border-bottom-color: var(--border-main) !important;
+}
+
+/* Corrections spécifiques des badges de statut en mode sombre */
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark .bg-rose-50 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+  color: #818cf8 !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+.dark .bg-violet-50 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+  color: #a78bfa !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+body, .font-sans {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: "Roboto", sans-serif !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, h5, h6, .font-serif {
+  font-family: "Oswald", sans-serif !important;
+}
+
+/* Custom Accessibility Focus Styles */
+*:focus-visible {
+  outline: 3px solid var(--brand-lime);
+  outline-offset: 2px;
+}

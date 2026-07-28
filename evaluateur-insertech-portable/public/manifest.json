@@ -1,0 +1,24 @@
+{
+  "short_name": "Insertech",
+  "name": "Évaluateur de Prix — Insertech",
+  "description": "Plateforme autonome d'évaluation de prix d'équipements informatiques d'occasion pour Insertech.",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1A1A1B",
+  "theme_color": "#4C1D95",
+  "display": "standalone",
+  "orientation": "any",
+  "categories": ["business", "productivity", "utilities"]
+}

@@ -1,0 +1,26 @@
+node_modules/
+build/
+dist/
+dist-standalone/
+exports/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Caches des scrapers (régénérés automatiquement)
+scraper-cache/
+scraper-cache.json
+
+# Profil navigateur Puppeteer/Playwright (régénéré automatiquement)
+data/puppeteer_profile/
+
+# Fichiers de debug temporaires
+scratch/*.html
+scratch/*.md
+scratch/*.mjs
+
+# Artefact SEA (Single Executable Application)
+dist-standalone/
+sea-prep.blob

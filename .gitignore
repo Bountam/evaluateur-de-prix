@@ -1,0 +1,34 @@
+node_modules/
+build/
+dist/
+dist-standalone/
+exports/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Caches des scrapers (régénérés automatiquement)
+scraper-cache/
+scraper-cache.json
+
+# Profil navigateur Puppeteer/Playwright (régénéré automatiquement)
+data/puppeteer_profile/
+
+# Fichiers de debug temporaires
+scratch/*.html
+scratch/*.md
+scratch/*.mjs
+
+# Artefact SEA (Single Executable Application)
+dist-standalone/
+sea-prep.blob
+
+# Fichiers binaires temporaires et archives distribuables
+node-v22.14.0-win-x64/
+evaluateur-insertech-portable.zip
+evaluateur-insertech-portable/dist/
+evaluateur-insertech-portable/node.exe
+evaluateur-insertech-portable/chromium/
+

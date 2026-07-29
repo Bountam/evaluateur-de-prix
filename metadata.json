@@ -1,0 +1,7 @@
+{
+  "name": "Évaluateur de Prix Insertech",
+  "version": "1.4.0",
+  "description": "Application d'automatisation et d'évaluation de prix d'équipements informatiques d'occasion (eBay, Back Market, Reebelo, Amazon Renewed, Best Buy, Kijiji, GCSurplus, Facebook Marketplace, Refurbisseurs canadiens) avec auto-guérison et exportation Excel pour Insertech.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

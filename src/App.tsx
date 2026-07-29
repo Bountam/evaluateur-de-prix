@@ -62,7 +62,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion] = useState("1.3.0");
+  const [appVersion] = useState("1.4.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Gestion de la concurrence CPU ---

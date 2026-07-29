@@ -539,17 +539,17 @@ async function startServer() {
   app.get("/api/version", (req, res) => {
     res.json({
       success: true,
-      version: "1.3.0",
+      version: "1.4.0",
       channel: "Stable",
-      releaseDate: "2026-07-28",
+      releaseDate: "2026-07-29",
       name: "Évaluateur de Prix Insertech"
     });
   });
 
   // Check for application updates via GitHub Releases API
   app.get("/api/check-update", async (req, res) => {
-    const currentVersion = "1.3.0";
-    const githubRepo = process.env.GITHUB_REPO || "bountam/evaluateur-de-prix-insertech";
+    const currentVersion = "1.4.0";
+    const githubRepo = process.env.GITHUB_REPO || "Bountam/evaluateur-de-prix";
     
     try {
       const response = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {

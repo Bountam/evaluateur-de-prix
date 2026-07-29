@@ -21,11 +21,11 @@ if (fs.existsSync(DIST_DIR)) {
 const viteBin = path.join(ROOT_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite');
 execSync(`"${viteBin}" build --emptyOutDir false`, { cwd: ROOT_DIR, stdio: 'inherit' });
 
-// 2. Bundle Server with Esbuild (Encapsulation 100% autonome sans node_modules requis au runtime)
-console.log('⚡ 2/4 - Bundle autonome du serveur Node.js & des scrapers...');
+// 2. Bundle Server with Esbuild (Encapsulation 100% autonome)
+console.log('⚡ 2/4 - Bundle du serveur Node.js & des scrapers...');
 const esbuildBin = path.join(ROOT_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'esbuild.cmd' : 'esbuild');
 execSync(
-  `"${esbuildBin}" server.ts --bundle --platform=node --format=esm --sourcemap --outfile=dist/server.js`,
+  `"${esbuildBin}" server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js`,
   { cwd: ROOT_DIR, stdio: 'inherit' }
 );
 
@@ -60,6 +60,21 @@ fs.mkdirSync(PORTABLE_DIR, { recursive: true });
 
 // Copier les fichiers distribuables dist -> portable/dist
 copyFolderRecursiveSync(DIST_DIR, path.join(PORTABLE_DIR, 'dist'));
+
+// Copier les dépendances node_modules dans le package portable pour une exécution nativité 100% sans faille
+const nodeModulesDir = path.join(ROOT_DIR, 'node_modules');
+if (fs.existsSync(nodeModulesDir)) {
+  console.log('📦 Copie des dépendances node_modules dans le package portable...');
+  copyFolderRecursiveSync(nodeModulesDir, path.join(PORTABLE_DIR, 'node_modules'));
+}
+
+// Copier les data_files de header-generator indispensables à got-scraping
+const headerGeneratorData = path.join(ROOT_DIR, 'node_modules', 'header-generator', 'data_files');
+if (fs.existsSync(headerGeneratorData)) {
+  console.log('📄 Copie des fichiers de données header-generator (got-scraping)...');
+  copyFolderRecursiveSync(headerGeneratorData, path.join(DIST_DIR, 'data_files'));
+  copyFolderRecursiveSync(headerGeneratorData, path.join(PORTABLE_DIR, 'dist', 'data_files'));
+}
 
 // Copier public -> portable/public (manifest, sw.js)
 const publicDir = path.join(ROOT_DIR, 'public');

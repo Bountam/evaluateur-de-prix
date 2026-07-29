@@ -53,7 +53,26 @@ If Err.Number <> 0 Then
   WScript.Quit 1
 End If
 On Error GoTo 0
-WScript.Sleep 1800
+
+' Attendre activement que le serveur Node.js réponde sur http://127.0.0.1:3000
+Dim xmlHttp, isReady, tryCount
+Set xmlHttp = CreateObject("MSXML2.ServerXMLHTTP")
+isReady = False
+tryCount = 0
+
+Do While tryCount < 40 And Not isReady
+  On Error Resume Next
+  xmlHttp.open "GET", "http://127.0.0.1:3000/api/sources", False
+  xmlHttp.send ""
+  If Err.Number = 0 Then
+    isReady = True
+  Else
+    Err.Clear
+    WScript.Sleep 250
+  End If
+  On Error GoTo 0
+  tryCount = tryCount + 1
+Loop
 
 ' 2. Lancer la fenêtre d'application GUI dédiée et attendre la fermeture par l'utilisateur
 Dim edge32, edge64, edgePath

@@ -64,8 +64,12 @@ copyFolderRecursiveSync(DIST_DIR, path.join(PORTABLE_DIR, 'dist'));
 // Copier les dépendances node_modules dans le package portable pour une exécution nativité 100% sans faille
 const nodeModulesDir = path.join(ROOT_DIR, 'node_modules');
 if (fs.existsSync(nodeModulesDir)) {
-  console.log('📦 Copie des dépendances node_modules dans le package portable...');
-  copyFolderRecursiveSync(nodeModulesDir, path.join(PORTABLE_DIR, 'node_modules'));
+  try {
+    console.log('📦 Copie des dépendances node_modules dans le package portable...');
+    copyFolderRecursiveSync(nodeModulesDir, path.join(PORTABLE_DIR, 'node_modules'));
+  } catch (err: any) {
+    console.warn('⚠️ Remarque lors de la copie de node_modules:', err?.message || err);
+  }
 }
 
 // Copier les data_files de header-generator indispensables à got-scraping

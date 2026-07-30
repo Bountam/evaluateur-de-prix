@@ -62,9 +62,9 @@ tryCount = 0
 
 Do While tryCount < 40 And Not isReady
   On Error Resume Next
-  xmlHttp.open "GET", "http://127.0.0.1:3000/api/sources", False
+  xmlHttp.open "GET", "http://127.0.0.1:3000/api/version", False
   xmlHttp.send ""
-  If Err.Number = 0 Then
+  If Err.Number = 0 And xmlHttp.status = 200 Then
     isReady = True
   Else
     Err.Clear

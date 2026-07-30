@@ -435,6 +435,19 @@ export default function App() {
     return await res.json();
   };
 
+  const handleImportExcel = async (fileData: string) => {
+    const res = await fetch("/api/import-excel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileData }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchState();
+    }
+    return data;
+  };
+
   const handlePurgeAll = async () => {
     const res = await fetch("/api/purge-all", {
       method: "POST"
@@ -735,7 +748,7 @@ export default function App() {
         {/* Export tab */}
         {activeTab === "export" && (
           <div className="max-w-2xl mx-auto w-full py-4 animate-fadeIn" id="tab-export">
-            <ExportPanel onExport={handleExportExcel} />
+            <ExportPanel onExport={handleExportExcel} onImport={handleImportExcel} />
           </div>
         )}
       </main>

@@ -1002,11 +1002,120 @@ del "%~f0"
     res.status(404).json({ success: false, message: "Modèle introuvable." });
   });
 
-  // Generate Excel Spreadsheet and write locally + return buffer for client download
+  const MASTER_FILE_NAME = "DataBase_PrixPc_refurb.xlsx";
+
+  // Endpoint d'importation et de synchronisation de la base de données Excel complète
+  app.post("/api/import-excel", express.json({ limit: "50mb" }), (req, res) => {
+    try {
+      const { fileData } = req.body;
+      let workbook;
+
+      if (fileData) {
+        const buffer = Buffer.from(fileData.replace(/^data:.*;base64,/, ""), "base64");
+        workbook = XLSX.read(buffer, { type: "buffer" });
+      } else {
+        const localDir = path.join(process.cwd(), "exports");
+        const masterPath = path.join(localDir, MASTER_FILE_NAME);
+        if (fs.existsSync(masterPath)) {
+          workbook = XLSX.readFile(masterPath);
+        } else {
+          res.status(400).json({ success: false, message: `Aucun fichier maître ${MASTER_FILE_NAME} trouvé sur le serveur.` });
+          return;
+        }
+      }
+
+      const db = readDB();
+      if (!db.evaluations) db.evaluations = {};
+
+      const modelSheetNames = ["2. Ordinateurs portables", "3. Ordinateurs de bureau", "4. iPhone"];
+      let importedCount = 0;
+
+      modelSheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) return;
+
+        const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+        // Grouper les lignes par modèle
+        const rowsByModel: Record<string, any[]> = {};
+        rows.forEach(r => {
+          const model = r["Modèle"] || r["Modele"];
+          if (model) {
+            if (!rowsByModel[model]) rowsByModel[model] = [];
+            rowsByModel[model].push(r);
+          }
+        });
+
+        Object.keys(rowsByModel).forEach(modelName => {
+          const modelRows = rowsByModel[modelName];
+          // Trier par date d'analyse croissante
+          modelRows.sort((a, b) => new Date(a["Date analyse"] || 0).getTime() - new Date(b["Date analyse"] || 0).getTime());
+
+          const latestRow = modelRows[modelRows.length - 1];
+          const medianPriceNum = parseInt(String(latestRow["Prix médian"] || latestRow["Valeur recommandée"] || "0").replace(/[^0-9]/g, "")) || 0;
+
+          // Reconstruire l'historique des prix
+          const historicalPrices = modelRows.map(r => ({
+            date: r["Date analyse"] || new Date().toISOString().slice(0, 10),
+            price: parseInt(String(r["Prix médian"] || r["Valeur recommandée"] || "0").replace(/[^0-9]/g, "")) || 0,
+            confidence: r["Niveau confiance"] || "Faible"
+          }));
+
+          const categoryName = latestRow["Catégorie"] || (sheetName.includes("portables") ? "Portables Lenovo" : sheetName.includes("bureau") ? "Desktop Lenovo" : "iPhones");
+
+          db.evaluations[modelName] = {
+            modelName,
+            category: db.evaluations[modelName]?.category || categoryName,
+            medianPrice: medianPriceNum,
+            comparablesCount: parseInt(String(latestRow["Nombre comparables"] || "0")) || 0,
+            confidence: latestRow["Niveau confiance"] || "Moyen",
+            lastScraped: latestRow["Date analyse"] ? new Date(latestRow["Date analyse"]).toISOString() : new Date().toISOString(),
+            configuration: latestRow["Configuration"] || "Intel Core i5, 16 Go, 256 Go SSD",
+            condition: latestRow["Condition"] || "Très bon",
+            commentaires: latestRow["Commentaires"] || "",
+            listings: db.evaluations[modelName]?.listings || [],
+            historicalPrices
+          };
+
+          importedCount++;
+        });
+      });
+
+      // Importer GCSurplus si présent
+      if (workbook.Sheets["5. GCSurplus"]) {
+        const gcRows = XLSX.utils.sheet_to_json(workbook.Sheets["5. GCSurplus"]) as any[];
+        db.gcsurplusLots = gcRows.map((r, i) => ({
+          id: `gc-${i}`,
+          lotNumber: String(r["Numéro de Lot"] || ""),
+          title: r["Description du Lot"] || "",
+          closingDate: r["Date de Clôture"] || "",
+          currentBid: parseInt(String(r["Offre Actuelle (CAD)"] || "0").replace(/[^0-9]/g, "")) || 0,
+          quantity: parseInt(String(r["Quantité d'unités"] || "1")) || 1,
+          unitPrice: parseInt(String(r["Prix Unitaire Calculé (CAD)"] || "0").replace(/[^0-9]/g, "")) || 0,
+          status: r["Statut de l'Enchère"] || "En cours",
+          url: r["Lien Web GCSurplus"] || "",
+          location: r["Localisation physique"] || "Montréal, QC",
+          authorized: r["Accès autorisé d'Insertech"] === "Oui (Vérifié)",
+          comments: r["Notes d'évaluation Insertech"] || ""
+        }));
+      }
+
+      writeDB(db);
+
+      res.json({
+        success: true,
+        count: importedCount,
+        message: `Base de données complète (${importedCount} modèles et leurs historiques) importée avec succès !`
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: `Erreur d'importation Excel : ${err.message}` });
+    }
+  });
+
+  // Generate Excel Master Spreadsheet (DataBase_PrixPc_refurb.xlsx) and overwrite locally + return buffer for client download
   app.post("/api/export-excel", (req, res) => {
     const db = readDB();
     const { targetPath } = req.body;
-    const exportPath = targetPath || "I:\\Developpement_des_affaires\\1_Approvisionnement\\Documents\\Etude_de_prix\\";
+    const exportDir = targetPath || "I:\\Developpement_des_affaires\\1_Approvisionnement\\Documents\\Etude_de_prix\\";
 
     const evaluations = Object.values(db.evaluations || {}) as any[];
 
@@ -1015,13 +1124,28 @@ del "%~f0"
       return;
     }
 
+    const localDir = path.join(process.cwd(), "exports");
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+
+    const localMasterPath = path.join(localDir, MASTER_FILE_NAME);
+    let existingWb: any = null;
+    if (fs.existsSync(localMasterPath)) {
+      try {
+        existingWb = XLSX.readFile(localMasterPath);
+      } catch {
+        existingWb = null;
+      }
+    }
+
     // Sheet 1: Synthèse
     const summaryRows = [
       { "Indicateur de marché": "Total des modèles sous surveillance", "Valeur": evaluations.length, "Description": "Ensemble du catalogue Insertech à surveiller" },
       { "Indicateur de marché": "Nombre d'évaluations actives", "Valeur": evaluations.filter(ev => ev.comparablesCount > 0).length, "Description": "Modèles avec comparables valides" },
       { "Indicateur de marché": "Total des comparables analysés", "Valeur": evaluations.reduce((sum, ev) => sum + (ev.listings ? ev.listings.length : 0), 0), "Description": "Annonces brutes collectées sur le marché" },
       { "Indicateur de marché": "Sources de données actives", "Valeur": db.sources ? db.sources.filter((s: any) => s.status.includes("Actif") || s.status.includes("Connecté") || s.status.includes("Recherche")).length : 12, "Description": "Sources connectées à l'orchestrateur de scraping Insertech" },
-      { "Indicateur de marché": "Dernière mise à jour générale", "Valeur": new Date().toLocaleDateString("fr-CA") + " " + new Date().toLocaleTimeString("fr-CA"), "Description": "Dernière compilation de l'index secondaire" }
+      { "Indicateur de marché": "Dernière mise à jour générale", "Valeur": new Date().toLocaleDateString("fr-CA") + " " + new Date().toLocaleTimeString("fr-CA"), "Description": "Dernière compilation de la base de données historique" }
     ];
 
     const categoryStats: Record<string, { count: number, sumMedian: number }> = {};
@@ -1042,9 +1166,20 @@ del "%~f0"
 
     const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
 
-    // Helper function to build model sheets
-    const buildModelSheetRows = (cats: string[]) => {
-      return evaluations
+    // Helper function to build model sheets with full chronological history
+    const buildModelSheetRows = (cats: string[], sheetName: string) => {
+      let existingRows: any[] = [];
+      if (existingWb && existingWb.Sheets[sheetName]) {
+        try {
+          existingRows = XLSX.utils.sheet_to_json(existingWb.Sheets[sheetName]);
+        } catch {
+          existingRows = [];
+        }
+      }
+
+      // Générer les nouvelles lignes du jour
+      const todayStr = new Date().toLocaleDateString("fr-CA");
+      const newRows = evaluations
         .filter(ev => cats.includes(ev.category))
         .map(ev => {
           const prices = ev.listings ? ev.listings.filter((l: any) => l.included).map((l: any) => l.price) : [];
@@ -1053,11 +1188,13 @@ del "%~f0"
           const avgPrice = prices.length > 0 ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length) : 0;
           const urlsStr = ev.listings ? ev.listings.filter((l: any) => l.included).slice(0, 3).map((l: any) => l.url).join(" | ") : "";
           const brand = getBrand(ev.modelName, ev.category);
+          const dateAnalyse = ev.lastScraped ? new Date(ev.lastScraped).toLocaleDateString("fr-CA") : todayStr;
 
           return {
-            "Date analyse": ev.lastScraped ? new Date(ev.lastScraped).toLocaleDateString("fr-CA") : "N/A",
+            "Date analyse": dateAnalyse,
             "Marque": brand,
             "Modèle": ev.modelName,
+            "Catégorie": ev.category,
             "Configuration": ev.configuration || "Intel Core i5, 16 Go, 256 Go SSD",
             "Condition": ev.condition || "Très bon",
             "Nombre comparables": ev.comparablesCount || 0,
@@ -1072,18 +1209,43 @@ del "%~f0"
             "Commentaires": ev.commentaires || ""
           };
         });
+
+      // Fusionner et dédoublonner les lignes par (Date analyse + Modèle)
+      const mergedMap = new Map<string, any>();
+      existingRows.forEach(r => {
+        const key = `${r["Date analyse"] || ""}|${r["Modèle"] || r["Modele"] || ""}`;
+        if (key.trim() !== "|") mergedMap.set(key, r);
+      });
+      newRows.forEach(r => {
+        const key = `${r["Date analyse"] || ""}|${r["Modèle"] || ""}`;
+        if (key.trim() !== "|") mergedMap.set(key, r); // La nouvelle ligne met à jour celle du même jour
+      });
+
+      const mergedRows = Array.from(mergedMap.values());
+
+      // Trier chronologiquement (Date analyse déclinante), puis Marque, puis Modèle
+      mergedRows.sort((a, b) => {
+        const dateA = new Date(a["Date analyse"] || 0).getTime();
+        const dateB = new Date(b["Date analyse"] || 0).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        const brandCompare = String(a["Marque"] || "").localeCompare(String(b["Marque"] || ""));
+        if (brandCompare !== 0) return brandCompare;
+        return String(a["Modèle"] || "").localeCompare(String(b["Modèle"] || ""));
+      });
+
+      return mergedRows;
     };
 
     // Sheet 2: Ordinateurs portables
-    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables HP", "Apple"]);
+    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables HP", "Apple"], "2. Ordinateurs portables");
     const wsLaptops = XLSX.utils.json_to_sheet(laptopsData);
 
     // Sheet 3: Ordinateurs de bureau
-    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"]);
+    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"], "3. Ordinateurs de bureau");
     const wsDesktops = XLSX.utils.json_to_sheet(desktopsData);
 
     // Sheet 4: iPhone
-    const iphoneData = buildModelSheetRows(["iPhones"]);
+    const iphoneData = buildModelSheetRows(["iPhones"], "4. iPhone");
     const wsIphone = XLSX.utils.json_to_sheet(iphoneData);
 
     // Sheet 5: GCSurplus
@@ -1156,21 +1318,23 @@ del "%~f0"
     XLSX.utils.book_append_sheet(wb, wsHistorical, "7. Historique");
     XLSX.utils.book_append_sheet(wb, wsVariance, "8. Écarts de prix");
 
-    // Écriture du fichier dans le dossier persistant /exports/ à la racine du projet
-    // (indépendant du dossier dist/ qui est effacé à chaque build)
-    const fileName = `Analyse_marche_secondaire_Insertech_${new Date().toISOString().slice(0,10).replace(/-/g, "")}.xlsx`;
-    const localDir = path.join(process.cwd(), "exports");
-    if (!fs.existsSync(localDir)) {
-      fs.mkdirSync(localDir, { recursive: true });
+    // Écriture déterministe avec écrasement du fichier maître DataBase_PrixPc_refurb.xlsx
+    XLSX.writeFile(wb, localMasterPath);
+
+    // Écriture miroir dans le dossier de destination configuré si accessible
+    if (exportDir && fs.existsSync(exportDir)) {
+      try {
+        XLSX.writeFile(wb, path.join(exportDir, MASTER_FILE_NAME));
+      } catch (e) {
+        console.warn("Impossible d'écrire directement sur le lecteur réseau:", e);
+      }
     }
-    const localFilePath = path.join(localDir, fileName);
-    XLSX.writeFile(wb, localFilePath);
 
     res.json({
       success: true,
-      fileName,
-      simulatedPath: path.join(exportPath, fileName),
-      downloadUrl: `/exports/${fileName}`,
+      fileName: MASTER_FILE_NAME,
+      simulatedPath: path.join(exportDir, MASTER_FILE_NAME),
+      downloadUrl: `/exports/${MASTER_FILE_NAME}`,
       count: evaluations.length
     });
   });

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Démarrage — Évaluateur de Prix Insertech</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      border-radius: 16px;
+      padding: 40px 48px;
+      width: 460px;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .logo-badge {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #4E2A84 0%, #7E57C2 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px auto;
+      box-shadow: 0 10px 25px rgba(78, 42, 132, 0.4);
+    }
+    .logo-badge svg { width: 36px; height: 36px; fill: none; stroke: #C4D600; stroke-width: 2.2; }
+    h1 { font-size: 18px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em; margin-bottom: 6px; }
+    p.subtitle { font-size: 12px; color: #94a3b8; margin-bottom: 28px; }
+    .progress-container {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 30%;
+      background: linear-gradient(90deg, #4E2A84, #C4D600);
+      border-radius: 999px;
+      animation: pulse-progress 2s infinite ease-in-out;
+    }
+    @keyframes pulse-progress {
+      0% { width: 15%; margin-left: 0%; }
+      50% { width: 60%; margin-left: 20%; }
+      100% { width: 15%; margin-left: 85%; }
+    }
+    .status-text { font-size: 12px; font-weight: 600; color: #c4d600; font-family: monospace; }
+    .footer-note { font-size: 10px; color: #64748b; margin-top: 24px; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-badge">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    </div>
+    <h1>Démarrage du Système Insertech</h1>
+    <p class="subtitle">Initialisation des services et des moteurs d'évaluation...</p>
+    
+    <div class="progress-container">
+      <div class="progress-bar" id="pbar"></div>
+    </div>
+    
+    <div class="status-text" id="statusMsg">Chargement des services locaux...</div>
+    <div class="footer-note">Veuillez patienter pendant la préparation du serveur local.</div>
+  </div>
+
+  <script>
+    const TARGET_URL = 'http://127.0.0.1:3000';
+    const statusMsg = document.getElementById('statusMsg');
+    const pbar = document.getElementById('pbar');
+    let attempts = 0;
+    let redirecting = false;
+
+    const messages = [
+      "Chargement des services locaux...",
+      "Initialisation de la base de données...",
+      "Démarrage du moteur d'évaluation...",
+      "Connexion au serveur local..."
+    ];
+
+    function redirectSuccess() {
+      if (redirecting) return;
+      redirecting = true;
+      statusMsg.innerText = "✅ Serveur prêt ! Connexion à l'application...";
+      statusMsg.style.color = "#4ade80";
+      pbar.style.animation = "none";
+      pbar.style.width = "100%";
+      pbar.style.marginLeft = "0%";
+      pbar.style.background = "#4ade80";
+      setTimeout(() => {
+        window.location.href = TARGET_URL;
+      }, 200);
+    }
+
+    function checkServer() {
+      if (redirecting) return;
+      attempts++;
+      statusMsg.innerText = messages[attempts % messages.length];
+
+      // Méthode 1: Sondage via Balise Image (zéro restriction CORS file://)
+      const img = new Image();
+      img.onload = img.onerror = function() {
+        redirectSuccess();
+      };
+      img.src = TARGET_URL + '/favicon.ico?t=' + Date.now();
+
+      // Méthode 2: Sondage via Fetch avec mode no-cors
+      fetch(TARGET_URL + '/api/version?t=' + Date.now(), { mode: 'no-cors' })
+        .then(() => {
+          redirectSuccess();
+        })
+        .catch(() => {
+          if (!redirecting) {
+            setTimeout(checkServer, 350);
+          }
+        });
+    }
+
+    checkServer();
+  </script>
+</body>
+</html>

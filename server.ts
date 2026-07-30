@@ -429,6 +429,18 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
+  // Support CORS pour la page de chargement autonome file:// (loading.html)
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
   // Intercepter les requêtes de polices/assets manquants pour retourner un 404 propre au lieu d'index.html (évite l'erreur OTS invalid sfntVersion)
   app.use((req, res, next) => {
     if (req.path.match(/\.(woff2?|ttf|otf|eot|ico|map)$/i)) {

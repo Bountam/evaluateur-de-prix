@@ -1,0 +1,179 @@
+{
+  "selectors": {
+    "eBay": {
+      "container": "div.s-item__wrapper",
+      "title": "div.s-item__info > a > div.s-item__title",
+      "price": "span.s-item__price",
+      "url": "a.s-item__link"
+    },
+    "backMarket": {
+      "container": "div.productCard",
+      "title": "h3.productCardTitle",
+      "price": "span.productCardPrice",
+      "url": "a.productCardLink"
+    }
+  },
+  "healingStatus": {
+    "eBay": {
+      "status": "OK",
+      "source": "Local",
+      "lastChecked": "2026-07-30T09:59:00.000Z",
+      "details": "Vérification locale réussie. Structure stable."
+    },
+    "backMarket": {
+      "status": "OK",
+      "source": "Local",
+      "lastChecked": "2026-07-30T09:59:00.000Z",
+      "details": "Vérification locale réussie. Structure stable."
+    }
+  },
+  "evaluations": {},
+  "gcsurplusLots": [],
+  "sources": [
+    {
+      "name": "Amazon (Canada)",
+      "type": "E-Commerce Canada",
+      "authorized": true,
+      "status": "Actif (API & Scraper)",
+      "description": "Plateforme reine pour le reconditionné certifié. Filtre d'intégrité anti-boîte vide.",
+      "url": "https://www.amazon.ca/s?k=",
+      "sourceKey": "amazon-renewed"
+    },
+    {
+      "name": "BackMarket (Canada)",
+      "type": "Marketplace Reconditionné",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Spécialiste du matériel reconditionné avec garanties. Excellent baromètre pour les prix de détail.",
+      "url": "https://www.backmarket.ca/fr-ca",
+      "sourceKey": "backmarket"
+    },
+    {
+      "name": "Best Buy (Canada)",
+      "type": "Grandes Surfaces Canada",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Section Boîte Ouverte et Reconditionné Marketplace de la plus grande chaîne électronique au Canada.",
+      "url": "https://www.bestbuy.ca/fr-ca",
+      "sourceKey": "bestbuy"
+    },
+    {
+      "name": "Dell Refurbished (Canada)",
+      "type": "Boutique Officielle Constructeur",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Magasin officiel de liquidation et reconditionné Dell Canada. Référence absolue pour les séries Latitude et OptiPlex.",
+      "url": "https://www.dellrefurbished.ca/fr-ca",
+      "sourceKey": "dell"
+    },
+    {
+      "name": "eBay Canada (Ventes Réussies)",
+      "type": "Enchères & Achats Immédiats",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Seules les transactions conclues et payées sont comptabilisées. Filtres stricts appliqués.",
+      "url": "https://www.ebay.ca/sch/i.html?_nkw=&LH_Complete=1&LH_Sold=1",
+      "sourceKey": "ebay-completed"
+    },
+    {
+      "name": "eBay Canada (Annonces Actives)",
+      "type": "Enchères & Achats Immédiats",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Prix demandés par les vendeurs sur les annonces en cours d'enchères ou achat immédiat.",
+      "url": "https://www.ebay.ca/sch/i.html?_nkw=",
+      "sourceKey": "ebay-active"
+    },
+    {
+      "name": "Refurb.io (Canada)",
+      "type": "Reconditionneur Agréé Microsoft",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Un des plus grands reconditionneurs d'ordinateurs d'entreprise au Canada.",
+      "url": "https://refurb.io/",
+      "sourceKey": "refurb-io"
+    },
+    {
+      "name": "Canada Computers (Reconditionnés)",
+      "type": "Détaillant Informatique Spécialisé",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Section d'équipements informatiques usagés et remis à neuf avec garantie magasin.",
+      "url": "https://www.canadacomputers.com/",
+      "sourceKey": "canada-computers"
+    },
+    {
+      "name": "IT Refurbs (Canada)",
+      "type": "Fournisseur B2B & Reconditionné",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Spécialiste de la vente en gros et au détail de matériel informatique d'entreprise remis à neuf.",
+      "url": "https://itrefurbs.ca/",
+      "sourceKey": "it-refurbs"
+    },
+    {
+      "name": "Walmart Canada (Marketplace)",
+      "type": "Grande Distribution",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Marketplace en ligne Walmart pour ordinateurs et téléphones intelligents reconditionnés.",
+      "url": "https://www.walmart.ca/fr",
+      "sourceKey": "walmart"
+    },
+    {
+      "name": "Rebeelo",
+      "type": "Marketplace Appareils Mobiles & PC",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Grand marketplace spécialisé en téléphones intelligents, iPhones et ordinateurs portable reconditionnés.",
+      "url": "https://reebelo.ca/",
+      "sourceKey": "reebelo"
+    },
+    {
+      "name": "Newegg Canada (Reconditionné)",
+      "type": "E-Commerce Tech",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Magasin en ligne d'équipements informatiques et composants électroniques d'occasion.",
+      "url": "https://www.newegg.ca/",
+      "sourceKey": "newegg"
+    },
+    {
+      "name": "SEAO (Appels d'offres & Lots publics)",
+      "type": "Marchés publics Québec",
+      "authorized": true,
+      "status": "Actif (Scraper)",
+      "description": "Système électronique d'appel d'offres du Québec pour les lots et contrats d'équipements informatiques.",
+      "url": "https://www.seao.ca/",
+      "sourceKey": "seao"
+    },
+    {
+      "name": "GCSurplus",
+      "type": "Enchères gouvernementales",
+      "authorized": true,
+      "status": "Recherche Publique",
+      "description": "Source d'approvisionnement principale d'Insertech. Permet d'acquérir des lots informatiques au volume.",
+      "url": "https://www.gcsurplus.ca/",
+      "sourceKey": "gcsurplus"
+    },
+    {
+      "name": "Insertech (Interne)",
+      "type": "Historique d'atelier & boutique",
+      "authorized": true,
+      "status": "Connecté (Fichier Excel/JSON)",
+      "description": "Nos propres prix de vente appliqués en boutique solidaire, nos temps de rotation et historiques d'inventaire.",
+      "url": "https://www.insertech.ca",
+      "sourceKey": "insertech-internal"
+    },
+    {
+      "name": "Insertech (Archives)",
+      "type": "Archives d'analyses historiques",
+      "authorized": true,
+      "status": "Actif (Scanner d'archives)",
+      "description": "Archivage permanent de nos études de marché mensuelles et analyses historiques antérieures pour audit comptable.",
+      "url": "#",
+      "sourceKey": "insertech-archives"
+    }
+  ],
+  "historicalLog": []
+}

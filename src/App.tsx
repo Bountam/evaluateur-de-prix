@@ -9,6 +9,8 @@ import EcartsTab from "./components/EcartsTab";
 import AddModelModal from "./components/AddModelModal";
 import ConcurrencyModal from "./components/ConcurrencyModal";
 import UpdateModal from "./components/UpdateModal";
+import SessionInitModal from "./components/SessionInitModal";
+import UserSwitchModal from "./components/UserSwitchModal";
 import { MASTER_LIST_MODELS } from "./modelsData";
 import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, GcsurplusLot, DataSource, HistoricalLogEntry } from "./types";
 import { 
@@ -23,6 +25,9 @@ import {
   Monitor,
   Smartphone,
   TrendingUp,
+  User,
+  UserCheck,
+  UserX,
   ShieldCheck,
   Sun,
   Moon,
@@ -63,6 +68,38 @@ export default function App() {
   const [appVersion, setAppVersion] = useState("1.4.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
+  // --- Opérateur & Modals de Session ---
+  const [operatorName, setOperatorName] = useState<string>(() => {
+    return localStorage.getItem("insertech_operatorName") || "";
+  });
+  const [isSessionInitOpen, setIsSessionInitOpen] = useState<boolean>(() => {
+    return !localStorage.getItem("insertech_operatorName");
+  });
+  const [isUserSwitchOpen, setIsUserSwitchOpen] = useState<boolean>(false);
+
+  const handleStartSession = async (userName: string, fileData?: string) => {
+    setOperatorName(userName);
+    localStorage.setItem("insertech_operatorName", userName);
+
+    if (fileData) {
+      await handleImportExcel(fileData);
+    } else {
+      await fetchState();
+    }
+    setIsSessionInitOpen(false);
+  };
+
+  const handleExportAndSwitchUser = async () => {
+    setIsUserSwitchOpen(false);
+    await handleExportExcel("");
+    setIsSessionInitOpen(true);
+  };
+
+  const handleSwitchUserWithoutExport = () => {
+    setIsUserSwitchOpen(false);
+    setIsSessionInitOpen(true);
+  };
+
   // --- Gestion de la concurrence CPU ---
   const [concurrency, setConcurrency] = useState<number>(() => {
     const saved = localStorage.getItem("insertech_concurrency");
@@ -70,34 +107,7 @@ export default function App() {
   });
   const [isConcurrencyModalOpen, setIsConcurrencyModalOpen] = useState(false);
 
-  // --- Gestion de l'opérateur (1 heure de persistance) ---
-  const [operatorName, setOperatorName] = useState<string>(() => {
-    const saved = localStorage.getItem("insertech_operatorName");
-    const timestamp = localStorage.getItem("insertech_operatorTimestamp");
-    if (saved && timestamp) {
-      const isExpired = Date.now() - parseInt(timestamp, 10) > 3600000; // 1 heure
-      if (!isExpired) return saved;
-    }
-    return "";
-  });
-  const [tempOperatorName, setTempOperatorName] = useState("");
-  const isOperatorModalOpen = !operatorName;
 
-  const handleSaveOperator = () => {
-    if (tempOperatorName.trim()) {
-      const name = tempOperatorName.trim();
-      setOperatorName(name);
-      localStorage.setItem("insertech_operatorName", name);
-      localStorage.setItem("insertech_operatorTimestamp", Date.now().toString());
-    }
-  };
-
-  const handleResetOperator = () => {
-    setOperatorName("");
-    setTempOperatorName("");
-    localStorage.removeItem("insertech_operatorName");
-    localStorage.removeItem("insertech_operatorTimestamp");
-  };
   // -------------------------------------------------------
 
   useEffect(() => {
@@ -468,7 +478,7 @@ export default function App() {
 
             </div>
             <h1 className="text-xl font-serif font-bold text-white tracking-normal mt-1.5">
-              Centre d'Évaluation du Marché Secondaire
+              Évaluateur de tarif du marché reconditionné
             </h1>
             <p className="text-[11px] text-slate-300 mt-0.5">
               Plateforme d'audit autonome : résilience heuristique, nettoyage statistique et preuves comptables réglementaires.
@@ -477,6 +487,16 @@ export default function App() {
 
           {/* Status indicators & Theme toggle */}
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono" id="status-indicators">
+
+            <button
+              onClick={() => setIsUserSwitchOpen(true)}
+              className="inline-flex items-center space-x-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 px-2.5 py-1 rounded-sm text-blue-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
+              id="btn-user-switch"
+              title="Changer d'utilisateur / Fin de session"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-blue-300" />
+              <span>Usager : {operatorName || "Non défini"}</span>
+            </button>
 
             <span className="inline-flex items-center space-x-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-sm text-slate-300">
               <span className="font-semibold select-all">
@@ -778,44 +798,7 @@ export default function App() {
         }}
       />
 
-      {/* Modal d'identification obligatoire */}
-      {isOperatorModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fadeIn border border-[#DCDDE1] dark:border-slate-700">
-            <div className="p-4 bg-brand-purple dark:bg-slate-950 border-b border-black/10">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <User className="w-5 h-5 text-brand-lime" />
-                Identification requise
-              </h2>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-                Veuillez entrer votre nom. Cette information est requise pour la traçabilité des modifications dans le journal d'audit (session de 1 heure).
-              </p>
-              <input
-                type="text"
-                className="w-full px-4 py-2 border border-[#DCDDE1] dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-purple dark:focus:ring-brand-lime bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                placeholder="Ex: Luka Boutin"
-                value={tempOperatorName}
-                onChange={(e) => setTempOperatorName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveOperator();
-                }}
-                autoFocus
-              />
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={handleSaveOperator}
-                  disabled={!tempOperatorName.trim()}
-                  className="px-6 py-2 bg-brand-purple dark:bg-brand-lime text-white dark:text-slate-900 font-bold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Continuer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Modal de configuration de la concurrence CPU */}
       <ConcurrencyModal
@@ -833,6 +816,22 @@ export default function App() {
         isOpen={isUpdateModalOpen}
         onClose={() => setIsUpdateModalOpen(false)}
         currentVersion={appVersion}
+      />
+
+      {/* Modal d'initialisation de session et import Excel */}
+      <SessionInitModal
+        isOpen={isSessionInitOpen}
+        onStartSession={handleStartSession}
+        hasExistingMasterFile={true}
+      />
+
+      {/* Modal de changement d'utilisateur avec option d'export et Annuler */}
+      <UserSwitchModal
+        isOpen={isUserSwitchOpen}
+        currentUser={operatorName}
+        onClose={() => setIsUserSwitchOpen(false)}
+        onExportAndSwitch={handleExportAndSwitchUser}
+        onSwitchWithoutExport={handleSwitchUserWithoutExport}
       />
 
     </div>

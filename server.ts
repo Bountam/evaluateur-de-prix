@@ -104,37 +104,6 @@ function getModelMeta(model: string) {
 function seedDatabase() {
   const evaluations: any = {};
   
-  const masterModelsList = [
-    { category: "Portables Lenovo", models: ["ThinkPad T480", "ThinkPad T480s", "ThinkPad T490", "ThinkPad T490s", "ThinkPad T14 Gen 1", "ThinkPad T14 Gen 2", "ThinkPad L480", "ThinkPad L490", "ThinkPad E480", "ThinkPad E490", "ThinkPad X390", "ThinkPad X13", "ThinkPad X1 Carbon Gen 6+"] },
-    { category: "Portables Dell", models: ["Latitude 5400", "Latitude 5410", "Latitude 5420", "Latitude 5430", "Latitude 5490", "Latitude 5500", "Latitude 5510", "Latitude 5520", "Latitude 7300", "Latitude 7310", "Latitude 7400", "Latitude 7410", "Latitude 7420"] },
-    { category: "Portables HP", models: ["EliteBook 840 G5", "EliteBook 840 G6", "EliteBook 840 G7", "EliteBook 840 G8", "EliteBook 850 G5", "EliteBook 850 G6", "ProBook 440 G5+", "ProBook 450 G5+"] },
-    { category: "Apple", models: ["MacBook Air Intel 2018+", "MacBook Air M1", "MacBook Air M2", "MacBook Pro Intel 2018+", "MacBook Pro M1", "MacBook Pro M2"] },
-    { category: "Desktop Lenovo", models: ["ThinkCentre M720", "ThinkCentre M720q", "ThinkCentre M920", "ThinkCentre M920q", "ThinkCentre M70q", "ThinkCentre M80q", "ThinkCentre M90q"] },
-    { category: "Desktop Dell", models: ["OptiPlex 3060", "OptiPlex 5060", "OptiPlex 7060", "OptiPlex 3070", "OptiPlex 5070", "OptiPlex 7070", "OptiPlex 3080", "OptiPlex 5080", "OptiPlex 7080"] },
-    { category: "Desktop HP", models: ["EliteDesk 800 G4", "EliteDesk 800 G5", "EliteDesk 800 G6", "ProDesk 600 G4", "ProDesk 600 G5"] },
-    { category: "iPhones", models: ["iPhone 11", "iPhone 11 Pro", "iPhone 11 Pro Max", "iPhone SE 2020", "iPhone 12", "iPhone 12 Mini", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13", "iPhone 13 Mini", "iPhone 13 Pro", "iPhone 13 Pro Max", "iPhone SE 2022", "iPhone 14", "iPhone 14 Plus", "iPhone 14 Pro", "iPhone 14 Pro Max", "iPhone 15", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 15 Pro Max"] }
-  ];
-
-  masterModelsList.forEach(group => {
-    group.models.forEach(model => {
-      const meta = getModelMeta(model);
-
-      evaluations[model] = {
-        modelName: model,
-        category: group.category,
-        medianPrice: 0,
-        confidence: "Non évalué",
-        comparablesCount: 0,
-        lastScraped: "",
-        listings: [],
-        configuration: meta.configuration,
-        condition: meta.condition,
-        commentaires: meta.commentaires,
-        historicalPrices: []
-      };
-    });
-  });
-
   const gcsurplusLots: any[] = [];
 
   const sources = [
@@ -329,8 +298,8 @@ function readDB() {
     const data = fs.readFileSync(DB_PATH, "utf-8");
     db = JSON.parse(data);
 
-    if (!db.evaluations || Object.keys(db.evaluations).length < 5) {
-      db = seedDatabase();
+    if (!db.evaluations) {
+      db.evaluations = {};
       writeDB(db);
       return db;
     }

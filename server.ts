@@ -1027,7 +1027,11 @@ del "%~f0"
       const db = readDB();
       if (!db.evaluations) db.evaluations = {};
 
-      const modelSheetNames = ["2. Ordinateurs portables", "3. Ordinateurs de bureau", "4. iPhone"];
+      const modelSheetNames = [
+        "1. Ordinateurs portables", "2. Ordinateurs portables",
+        "2. Ordinateurs de bureau", "3. Ordinateurs de bureau",
+        "3. iPhone", "4. iPhone"
+      ];
       let importedCount = 0;
 
       modelSheetNames.forEach(sheetName => {
@@ -1080,25 +1084,6 @@ del "%~f0"
         });
       });
 
-      // Importer GCSurplus si présent
-      if (workbook.Sheets["5. GCSurplus"]) {
-        const gcRows = XLSX.utils.sheet_to_json(workbook.Sheets["5. GCSurplus"]) as any[];
-        db.gcsurplusLots = gcRows.map((r, i) => ({
-          id: `gc-${i}`,
-          lotNumber: String(r["Numéro de Lot"] || ""),
-          title: r["Description du Lot"] || "",
-          closingDate: r["Date de Clôture"] || "",
-          currentBid: parseInt(String(r["Offre Actuelle (CAD)"] || "0").replace(/[^0-9]/g, "")) || 0,
-          quantity: parseInt(String(r["Quantité d'unités"] || "1")) || 1,
-          unitPrice: parseInt(String(r["Prix Unitaire Calculé (CAD)"] || "0").replace(/[^0-9]/g, "")) || 0,
-          status: r["Statut de l'Enchère"] || "En cours",
-          url: r["Lien Web GCSurplus"] || "",
-          location: r["Localisation physique"] || "Montréal, QC",
-          authorized: r["Accès autorisé d'Insertech"] === "Oui (Vérifié)",
-          comments: r["Notes d'évaluation Insertech"] || ""
-        }));
-      }
-
       writeDB(db);
 
       res.json({
@@ -1111,7 +1096,7 @@ del "%~f0"
     }
   });
 
-  // Generate Excel Master Spreadsheet (DataBase_PrixPc_refurb.xlsx) and overwrite locally + return buffer for client download
+  // Generate Excel Master Spreadsheet (DataBase_PrixPc_refurb.xlsx) with 5 clean sheets
   app.post("/api/export-excel", (req, res) => {
     const db = readDB();
     const { targetPath } = req.body;
@@ -1138,33 +1123,6 @@ del "%~f0"
         existingWb = null;
       }
     }
-
-    // Sheet 1: Synthèse
-    const summaryRows = [
-      { "Indicateur de marché": "Total des modèles sous surveillance", "Valeur": evaluations.length, "Description": "Ensemble du catalogue Insertech à surveiller" },
-      { "Indicateur de marché": "Nombre d'évaluations actives", "Valeur": evaluations.filter(ev => ev.comparablesCount > 0).length, "Description": "Modèles avec comparables valides" },
-      { "Indicateur de marché": "Total des comparables analysés", "Valeur": evaluations.reduce((sum, ev) => sum + (ev.listings ? ev.listings.length : 0), 0), "Description": "Annonces brutes collectées sur le marché" },
-      { "Indicateur de marché": "Sources de données actives", "Valeur": db.sources ? db.sources.filter((s: any) => s.status.includes("Actif") || s.status.includes("Connecté") || s.status.includes("Recherche")).length : 12, "Description": "Sources connectées à l'orchestrateur de scraping Insertech" },
-      { "Indicateur de marché": "Dernière mise à jour générale", "Valeur": new Date().toLocaleDateString("fr-CA") + " " + new Date().toLocaleTimeString("fr-CA"), "Description": "Dernière compilation de la base de données historique" }
-    ];
-
-    const categoryStats: Record<string, { count: number, sumMedian: number }> = {};
-    evaluations.forEach(ev => {
-      if (ev.medianPrice > 0) {
-        if (!categoryStats[ev.category]) categoryStats[ev.category] = { count: 0, sumMedian: 0 };
-        categoryStats[ev.category].count++;
-        categoryStats[ev.category].sumMedian += ev.medianPrice;
-      }
-    });
-    Object.keys(categoryStats).forEach(cat => {
-      summaryRows.push({
-        "Indicateur de marché": `Prix médian moyen - ${cat}`,
-        "Valeur": Math.round(categoryStats[cat].sumMedian / categoryStats[cat].count) + " $",
-        "Description": `Moyenne des prix médians recommandés pour la catégorie ${cat}`
-      });
-    });
-
-    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
 
     // Helper function to build model sheets with full chronological history
     const buildModelSheetRows = (cats: string[], sheetName: string) => {
@@ -1218,7 +1176,7 @@ del "%~f0"
       });
       newRows.forEach(r => {
         const key = `${r["Date analyse"] || ""}|${r["Modèle"] || ""}`;
-        if (key.trim() !== "|") mergedMap.set(key, r); // La nouvelle ligne met à jour celle du même jour
+        if (key.trim() !== "|") mergedMap.set(key, r);
       });
 
       const mergedRows = Array.from(mergedMap.values());
@@ -1236,48 +1194,19 @@ del "%~f0"
       return mergedRows;
     };
 
-    // Sheet 2: Ordinateurs portables
-    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables HP", "Apple"], "2. Ordinateurs portables");
+    // Sheet 1: Ordinateurs portables
+    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables HP", "Apple"], "1. Ordinateurs portables");
     const wsLaptops = XLSX.utils.json_to_sheet(laptopsData);
 
-    // Sheet 3: Ordinateurs de bureau
-    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"], "3. Ordinateurs de bureau");
+    // Sheet 2: Ordinateurs de bureau
+    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"], "2. Ordinateurs de bureau");
     const wsDesktops = XLSX.utils.json_to_sheet(desktopsData);
 
-    // Sheet 4: iPhone
-    const iphoneData = buildModelSheetRows(["iPhones"], "4. iPhone");
+    // Sheet 3: iPhone
+    const iphoneData = buildModelSheetRows(["iPhones"], "3. iPhone");
     const wsIphone = XLSX.utils.json_to_sheet(iphoneData);
 
-    // Sheet 5: GCSurplus
-    const gcsurplusLots = db.gcsurplusLots || [];
-    const gcsurplusRows = gcsurplusLots.map((lot: any) => ({
-      "Numéro de Lot": lot.lotNumber,
-      "Description du Lot": lot.title,
-      "Date de Clôture": lot.closingDate,
-      "Offre Actuelle (CAD)": `${lot.currentBid} $`,
-      "Quantité d'unités": lot.quantity,
-      "Prix Unitaire Calculé (CAD)": `${lot.unitPrice} $`,
-      "Statut de l'Enchère": lot.status,
-      "Lien Web GCSurplus": lot.url,
-      "Localisation physique": lot.location,
-      "Accès autorisé d'Insertech": lot.authorized ? "Oui (Vérifié)" : "Non",
-      "Notes d'évaluation Insertech": lot.comments || ""
-    }));
-    const wsGcsurplus = XLSX.utils.json_to_sheet(gcsurplusRows);
-
-    // Sheet 6: Sources
-    const sources = db.sources || [];
-    const sourcesRows = sources.map((src: any) => ({
-      "Nom de la Source d'Analyse": src.name,
-      "Type de Source": src.type,
-      "Accès autorisé d'Insertech": src.authorized ? "Oui (Vérifié)" : "Non",
-      "Statut de la Connexion": src.status,
-      "Description de l'Usage": src.description,
-      "URL Principale": src.url
-    }));
-    const wsSources = XLSX.utils.json_to_sheet(sourcesRows);
-
-    // Sheet 7: Historique
+    // Sheet 4: Historique
     const historicalLog = db.historicalLog || [];
     const historicalRows = historicalLog.map((log: any) => ({
       "Date / Heure": new Date(log.date).toLocaleString("fr-CA"),
@@ -1290,7 +1219,7 @@ del "%~f0"
     }));
     const wsHistorical = XLSX.utils.json_to_sheet(historicalRows);
 
-    // Sheet 8: Écarts depuis la dernière analyse
+    // Sheet 5: Écarts depuis la dernière analyse
     const varianceRows = evaluations.map(ev => {
       const prevPrice = ev.historicalPrices && ev.historicalPrices.length > 0 ? ev.historicalPrices[ev.historicalPrices.length - 1].price : ev.medianPrice;
       const diff = ev.medianPrice - prevPrice;
@@ -1309,14 +1238,11 @@ del "%~f0"
     const wsVariance = XLSX.utils.json_to_sheet(varianceRows);
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsSummary, "1. Synthèse");
-    XLSX.utils.book_append_sheet(wb, wsLaptops, "2. Ordinateurs portables");
-    XLSX.utils.book_append_sheet(wb, wsDesktops, "3. Ordinateurs de bureau");
-    XLSX.utils.book_append_sheet(wb, wsIphone, "4. iPhone");
-    XLSX.utils.book_append_sheet(wb, wsGcsurplus, "5. GCSurplus");
-    XLSX.utils.book_append_sheet(wb, wsSources, "6. Sources");
-    XLSX.utils.book_append_sheet(wb, wsHistorical, "7. Historique");
-    XLSX.utils.book_append_sheet(wb, wsVariance, "8. Écarts de prix");
+    XLSX.utils.book_append_sheet(wb, wsLaptops, "1. Ordinateurs portables");
+    XLSX.utils.book_append_sheet(wb, wsDesktops, "2. Ordinateurs de bureau");
+    XLSX.utils.book_append_sheet(wb, wsIphone, "3. iPhone");
+    XLSX.utils.book_append_sheet(wb, wsHistorical, "4. Historique");
+    XLSX.utils.book_append_sheet(wb, wsVariance, "5. Écarts de prix");
 
     // Écriture déterministe avec écrasement du fichier maître DataBase_PrixPc_refurb.xlsx
     XLSX.writeFile(wb, localMasterPath);

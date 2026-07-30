@@ -7,14 +7,11 @@ interface ExportPanelProps {
 }
 
 const EXPORT_SHEETS = [
-  { num: "1", label: "Synthèse", desc: "Indicateurs globaux du marché & statistiques par catégorie" },
-  { num: "2", label: "Ordinateurs portables", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP, Apple)" },
-  { num: "3", label: "Ordinateurs de bureau", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP)" },
-  { num: "4", label: "iPhone", desc: "Historique complet trié par date (iPhone 11 → 15 Pro Max)" },
-  { num: "5", label: "GCSurplus", desc: "Lots gouvernementaux actifs (enchères publiques)" },
-  { num: "6", label: "Sources", desc: "Statut des connecteurs de données du marché secondaire" },
-  { num: "7", label: "Historique", desc: "Journal d'audit comptable de toutes les modifications" },
-  { num: "8", label: "Écarts de prix", desc: "Variations et tendances vs analyse précédente" },
+  { num: "1", label: "Ordinateurs portables", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP, Apple)" },
+  { num: "2", label: "Ordinateurs de bureau", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP)" },
+  { num: "3", label: "iPhone", desc: "Historique complet trié par date (iPhone 11 → 15 Pro Max)" },
+  { num: "4", label: "Historique", desc: "Journal d'audit comptable de toutes les modifications" },
+  { num: "5", label: "Écarts de prix", desc: "Variations et tendances vs analyse précédente" },
 ];
 
 export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
@@ -99,7 +96,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
 
       {/* Sheet Preview */}
       <div className="space-y-1" id="export-sheets-preview">
-        <p className="text-[9px] font-bold text-[#7F8C8D] uppercase tracking-wider">Structure de la Base de Données (8 feuilles)</p>
+        <p className="text-[9px] font-bold text-[#7F8C8D] uppercase tracking-wider">Structure de la Base de Données (5 feuilles)</p>
         <div className="grid grid-cols-2 gap-1">
           {EXPORT_SHEETS.map(sheet => (
             <div

@@ -111,28 +111,22 @@
       }, 200);
     }
 
-    function checkServer() {
+    async function checkServer() {
       if (redirecting) return;
       attempts++;
       statusMsg.innerText = messages[attempts % messages.length];
 
-      // Méthode 1: Sondage via Balise Image (zéro restriction CORS file://)
-      const img = new Image();
-      img.onload = img.onerror = function() {
-        redirectSuccess();
-      };
-      img.src = TARGET_URL + '/favicon.ico?t=' + Date.now();
-
-      // Méthode 2: Sondage via Fetch avec mode no-cors
-      fetch(TARGET_URL + '/api/version?t=' + Date.now(), { mode: 'no-cors' })
-        .then(() => {
+      try {
+        const res = await fetch(TARGET_URL + '/api/version?t=' + Date.now());
+        if (res.ok) {
           redirectSuccess();
-        })
-        .catch(() => {
-          if (!redirecting) {
-            setTimeout(checkServer, 350);
-          }
-        });
+          return;
+        }
+      } catch (e) {
+        // Le serveur Node.js démarre encore (connexion refusée)
+      }
+
+      setTimeout(checkServer, 300);
     }
 
     checkServer();

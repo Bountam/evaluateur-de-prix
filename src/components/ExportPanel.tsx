@@ -1,23 +1,12 @@
 import React, { useState, useRef } from "react";
-import { Download, FileSpreadsheet, Check, AlertTriangle, HelpCircle, FolderOpen, RefreshCw, Upload } from "lucide-react";
+import { Download, Check, AlertTriangle, RefreshCw, Upload, Database, Archive } from "lucide-react";
 
 interface ExportPanelProps {
   onExport: (targetPath: string) => Promise<{ success: boolean; simulatedPath: string; downloadUrl: string; count: number }>;
   onImport?: (fileData: string) => Promise<{ success: boolean; count: number; message: string }>;
 }
 
-const EXPORT_SHEETS = [
-  { num: "1", label: "Ordinateurs portables", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP, Apple)" },
-  { num: "2", label: "Ordinateurs de bureau", desc: "Historique complet trié par date, marque & modèle (Lenovo, Dell, HP)" },
-  { num: "3", label: "iPhone", desc: "Historique complet trié par date (iPhone 11 → 15 Pro Max)" },
-  { num: "4", label: "Historique", desc: "Journal d'audit comptable de toutes les modifications" },
-  { num: "5", label: "Écarts de prix", desc: "Variations et tendances vs analyse précédente" },
-];
-
 export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
-  const [exportPath, setExportPath] = useState(
-    "I:\\Developpement_des_affaires\\1_Approvisionnement\\Documents\\Etude_de_prix\\"
-  );
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string; count: number } | null>(null);
@@ -34,14 +23,14 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
     setLoading(true);
     setResult(null);
     try {
-      const data = await onExport(exportPath);
+      const data = await onExport("");
       if (data.success) {
         setResult({
           success: true,
           simulatedPath: data.simulatedPath,
           downloadUrl: data.downloadUrl,
           count: data.count,
-          fileName: "DataBase_PrixPc_refurb.xlsx"
+          fileName: "Export_Donnees_Brutes.zip"
         });
       } else {
         setResult({ success: false, simulatedPath: "", downloadUrl: "", count: 0, fileName: "" });
@@ -77,192 +66,170 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-[#DCDDE1] p-4 space-y-4 shadow-sm" id="export-panel-container">
-
-      {/* Header */}
-      <div className="flex items-start space-x-2.5 border-b border-[#F1F2F6] pb-3" id="export-header">
-        <div className="p-2 bg-emerald-50 rounded text-emerald-600">
-          <FileSpreadsheet className="w-4 h-4" />
-        </div>
-        <div>
-          <h2 className="text-xs font-bold text-[#2D3436] uppercase tracking-wider mt-0.5">
-            Base de Données Historique Excel — DataBase_PrixPc_refurb.xlsx
-          </h2>
-          <p className="text-[10px] text-[#7F8C8D] mt-0.5 font-medium">
-            Le fichier maître <strong>DataBase_PrixPc_refurb.xlsx</strong> accumule 100 % de l'historique chronologique des évaluations par date. L'exportation écrase déterministement le fichier maître avec les nouvelles données compilées.
-          </p>
-        </div>
-      </div>
-
-      {/* Sheet Preview */}
-      <div className="space-y-1" id="export-sheets-preview">
-        <p className="text-[9px] font-bold text-[#7F8C8D] uppercase tracking-wider">Structure de la Base de Données (5 feuilles)</p>
-        <div className="grid grid-cols-2 gap-1">
-          {EXPORT_SHEETS.map(sheet => (
-            <div
-              key={sheet.num}
-              className="flex items-start space-x-1.5 bg-[#F8F9FA] rounded px-2 py-1.5 border border-[#DCDDE1]"
-            >
-              <span className="text-[9px] font-mono font-bold text-emerald-600 mt-px shrink-0">{sheet.num}.</span>
-              <div>
-                <p className="text-[9px] font-bold text-slate-700">{sheet.label}</p>
-                <p className="text-[9px] text-slate-400 leading-tight">{sheet.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Import / Restore Section */}
-      <div className="bg-[#F8F9FA] rounded-lg border border-[#DCDDE1] p-3 space-y-2" id="import-section">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Upload className="w-3.5 h-3.5 text-brand-purple dark:text-brand-lime" />
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Importer / Restaurer la Base de Données (.xlsx)
-            </h3>
-          </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".xlsx, .xls"
-            className="hidden"
-            id="excel-file-input"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all flex items-center space-x-1.5"
-            id="btn-trigger-import"
-          >
-            {importing ? (
-              <>
-                <RefreshCw className="animate-spin h-3 w-3" />
-                <span>Importation...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="w-3 h-3" />
-                <span>Choisir DataBase_PrixPc_refurb.xlsx</span>
-              </>
-            )}
-          </button>
-        </div>
-        <p className="text-[10px] text-slate-500 italic">
-          Restaure et synchronise instantanément l'ensemble de l'historique d'évaluation depuis un fichier Excel maître.
-        </p>
-
-        {importResult && (
-          <div className={`p-2 rounded text-[10px] font-medium flex items-center space-x-2 ${importResult.success ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900"}`}>
-            {importResult.success ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />}
-            <span>{importResult.message}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Destination Path */}
-      <div className="space-y-1.5" id="export-path-section">
-        <label className="block text-[9px] font-bold text-[#7F8C8D] uppercase tracking-wider flex items-center space-x-1">
-          <FolderOpen className="w-3 h-3" />
-          <span>Dossier de destination (lecteur réseau Windows I:)</span>
-          <HelpCircle
-            className="w-3 h-3 text-slate-400 cursor-help"
-            title="Chemin réseau Insertech — Developpement des affaires → Approvisionnement"
-          />
-        </label>
-        <input
-          type="text"
-          className="w-full px-2.5 py-1.5 text-xs bg-[#F8F9FA] border border-[#DCDDE1] rounded font-mono text-slate-800 outline-none focus:bg-white focus:border-brand-purple dark:focus:border-brand-lime transition-colors"
-          value={exportPath}
-          onChange={(e) => setExportPath(e.target.value)}
-          id="export-path-input"
-          placeholder="I:\Chemin\Vers\Dossier\"
-        />
-        <p className="text-[10px] text-[#7F8C8D] italic">
-          Le fichier maître DataBase_PrixPc_refurb.xlsx sera écrasé avec la base de données historique complète.
+    <div className="max-w-4xl mx-auto space-y-6 p-2" id="export-panel-container">
+      {/* Title */}
+      <div className="text-center space-y-1 mb-6">
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center justify-center space-x-2">
+          <Database className="w-5 h-5 text-brand-purple dark:text-brand-lime" />
+          <span>Gestion de la Base de Données</span>
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Importez vos données manuellement depuis <strong>Import_Manuel.xlsx</strong> ou générez votre archive brute (CSV).
         </p>
       </div>
 
-      {/* Action Button */}
-      <div className="flex items-center space-x-3 pt-1" id="export-actions">
-        <button
-          onClick={handleExport}
-          disabled={loading}
-          className={`flex items-center space-x-1.5 px-3 py-2 bg-brand-purple hover:bg-brand-purple-hover dark:bg-brand-lime dark:hover:bg-brand-lime-hover dark:text-slate-950 text-white rounded-sm text-[10px] font-bold uppercase tracking-wider cursor-pointer shadow-sm transition-all ${
-            loading ? "opacity-75 cursor-not-allowed" : "active:scale-95"
-          }`}
-          id="btn-trigger-export"
-        >
-          {loading ? (
-            <>
-              <RefreshCw className="animate-spin h-3 w-3" />
-              <span>Mise à jour et écriture du fichier maître...</span>
-            </>
-          ) : (
-            <>
-              <FileSpreadsheet className="w-3 h-3 text-[#2ECC71]" />
-              <span>Exporter DataBase_PrixPc_refurb.xlsx (Base Historique)</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Result Feedback */}
-      {result && (
-        <div
-          className={`p-3 rounded-lg border flex items-start space-x-2.5 animate-fadeIn ${
-            result.success
-              ? "bg-emerald-50/50 border-emerald-200 text-slate-800"
-              : "bg-rose-50/50 border-rose-200 text-slate-800"
-          }`}
-          id="export-result-feedback"
-        >
-          {result.success ? (
-            <>
-              <div className="p-1 bg-emerald-100 rounded-full text-emerald-700 mt-0.5">
-                <Check className="w-3.5 h-3.5" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div>
-                  <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider font-mono">
-                    Base de données maître écrasée et sauvegardée !
-                  </h3>
-                  <p className="text-[10px] text-slate-600 mt-0.5">
-                    Classeur maître <strong>DataBase_PrixPc_refurb.xlsx</strong> mis à jour avec <strong>{result.count} modèles</strong> et leurs évaluations chronologiques.
-                  </p>
-                </div>
-                <div className="bg-white border border-emerald-100 rounded p-2 font-mono text-[10px] text-slate-700 break-all select-all">
-                  📁 {result.simulatedPath}
-                </div>
-                <a
-                  href={result.downloadUrl}
-                  download={result.fileName}
-                  className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline uppercase tracking-wide font-mono"
-                  id="link-download-excel"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Télécharger DataBase_PrixPc_refurb.xlsx</span>
-                </a>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="p-1 bg-rose-100 rounded-full text-rose-700 mt-0.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* CARD 1: IMPORTATION */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-5">
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg">
+                <Upload className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-rose-950 uppercase tracking-wider font-mono">
-                  Erreur d'écriture
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                  1. Importer la Base de Données
                 </h3>
-                <p className="text-[10px] text-slate-600 mt-0.5">
-                  Impossible de générer le rapport. Assurez-vous qu'au moins un modèle a été analysé et enregistré dans la base de données avant d'exporter.
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Charger le fichier <strong>Import_Manuel.xlsx</strong>
                 </p>
               </div>
-            </>
-          )}
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pt-2">
+              Sélectionnez le fichier <strong>Import_Manuel.xlsx</strong> pour intégrer vos propres données à l'application. 
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".xlsx, .xls"
+              className="hidden"
+              id="excel-file-input"
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 ${
+                importing ? "opacity-75 cursor-not-allowed" : "active:scale-98"
+              }`}
+              id="btn-trigger-import"
+            >
+              {importing ? (
+                <>
+                  <RefreshCw className="animate-spin h-4 w-4" />
+                  <span>Importation en cours...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Choisir Import_Manuel.xlsx</span>
+                </>
+              )}
+            </button>
+
+            {importResult && (
+              <div
+                className={`p-3 rounded-lg text-xs font-medium flex items-start space-x-2 animate-fadeIn ${
+                  importResult.success
+                    ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                    : "bg-rose-50 text-rose-900 border border-rose-200"
+                }`}
+              >
+                {importResult.success ? (
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{importResult.message}</span>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* CARD 2: EXPORTATION */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-5">
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                <Archive className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                  2. Exporter & Télécharger
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Générer le <strong>fichier ZIP (CSV)</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-col space-y-2">
+              <button
+                onClick={handleExport}
+                disabled={loading}
+                className={`w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 ${
+                  loading ? "opacity-75 cursor-not-allowed" : "active:scale-98"
+                }`}
+                id="btn-trigger-export"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="animate-spin h-4 w-4" />
+                    <span>Génération de l'archive...</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-4 h-4" />
+                    <span>Générer Export_Donnees_Brutes.zip</span>
+                  </>
+                )}
+              </button>
+
+              <a
+                href="/api/download-excel"
+                download="Export_Donnees_Brutes.zip"
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center space-x-2 text-center"
+                id="btn-direct-download-excel"
+              >
+                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Télécharger l'archive ZIP</span>
+              </a>
+            </div>
+
+            {result && (
+              <div
+                className={`p-3 rounded-lg text-xs font-medium space-y-2 animate-fadeIn ${
+                  result.success
+                    ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                    : "bg-rose-50 text-rose-900 border border-rose-200"
+                }`}
+                id="export-result-feedback"
+              >
+                {result.success ? (
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-bold">Archive générée avec succès ! ({result.count} modèles)</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Erreur lors de la génération de l'archive.</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

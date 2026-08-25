@@ -31,7 +31,6 @@ import {
   ShieldCheck,
   Sun,
   Moon,
-  User,
   Cpu,
   Sparkles
 } from "lucide-react";
@@ -70,19 +69,22 @@ export default function App() {
 
   // --- Opérateur & Modals de Session ---
   const [operatorName, setOperatorName] = useState<string>(() => {
-    return localStorage.getItem("insertech_operatorName") || "";
+    return sessionStorage.getItem("insertech_operatorName") || "";
   });
   const [isSessionInitOpen, setIsSessionInitOpen] = useState<boolean>(() => {
-    return !localStorage.getItem("insertech_operatorName");
+    return !sessionStorage.getItem("insertech_operatorName");
   });
   const [isUserSwitchOpen, setIsUserSwitchOpen] = useState<boolean>(false);
 
   const handleStartSession = async (userName: string, fileData?: string) => {
     setOperatorName(userName);
-    localStorage.setItem("insertech_operatorName", userName);
+    sessionStorage.setItem("insertech_operatorName", userName);
 
     if (fileData) {
-      await handleImportExcel(fileData);
+      const result = await handleImportExcel(fileData);
+      if (result && !result.success) {
+        throw new Error(result.message || "Échec de l'importation du fichier Excel.");
+      }
     } else {
       await fetchState();
     }
@@ -98,6 +100,10 @@ export default function App() {
   const handleSwitchUserWithoutExport = () => {
     setIsUserSwitchOpen(false);
     setIsSessionInitOpen(true);
+  };
+
+  const handleResetOperator = () => {
+    setIsUserSwitchOpen(true);
   };
 
   // --- Gestion de la concurrence CPU ---
@@ -446,16 +452,28 @@ export default function App() {
   };
 
   const handleImportExcel = async (fileData: string) => {
-    const res = await fetch("/api/import-excel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileData }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetchState();
+    try {
+      const res = await fetch("/api/import-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileData }),
+      });
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.success) {
+          await fetchState();
+        }
+        return data;
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response from server:", text);
+        return { success: false, message: `Erreur du serveur (HTTP ${res.status}). Vérifiez le format du fichier Excel.` };
+      }
+    } catch (err: any) {
+      console.error("Error importing Excel:", err);
+      return { success: false, message: `Erreur réseau ou d'importation : ${err.message}` };
     }
-    return data;
   };
 
   const handlePurgeAll = async () => {
@@ -538,15 +556,6 @@ export default function App() {
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span>EXPORT</span>
-            </button>
-
-            <button
-              onClick={handleResetOperator}
-              className="inline-flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-sm text-white cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-              title="Changer d'usager"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[100px]">{operatorName || "USAGER"}</span>
             </button>
 
             <button

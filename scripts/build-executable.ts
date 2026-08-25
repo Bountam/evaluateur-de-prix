@@ -30,22 +30,26 @@ execSync(
 );
 
 function copyFolderRecursiveSync(src: string, dest: string) {
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
-  }
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyFolderRecursiveSync(srcPath, destPath);
-    } else {
+  try {
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true });
+    }
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
       try {
-        fs.copyFileSync(srcPath, destPath);
-      } catch {
-        // Ignorer les fichiers verrouillés
+        if (entry.isDirectory()) {
+          copyFolderRecursiveSync(srcPath, destPath);
+        } else {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      } catch (e) {
+        // Ignorer les fichiers ou sous-dossiers verrouillés par le système
       }
     }
+  } catch (err) {
+    // Ignorer si le dossier source est inaccessible
   }
 }
 

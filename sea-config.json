@@ -1,0 +1,5 @@
+{
+  "main": "dist/server.js",
+  "output": "dist-standalone/sea-prep.blob",
+  "disableSentinel": false
+}

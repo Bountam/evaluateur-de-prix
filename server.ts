@@ -11,12 +11,36 @@ import { getCredentials, saveCredentials } from "./scrapers/credentials.ts";
 import { isPartOrAssembly, extractSpecsFromTitle } from "./scrapers/utils.ts";
 import { clearAllCache } from "./scrapers/cache.ts";
 import AdmZip from "adm-zip";
-
+import { DatabaseSync } from "node:sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "db.json");
+const SQLITE_PATH = path.join(process.cwd(), "data", "database.sqlite");
+
+let sqliteDb: DatabaseSync;
+try {
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  sqliteDb = new DatabaseSync(SQLITE_PATH);
+  sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS store (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+
+  // Migration logic
+  if (fs.existsSync(DB_PATH) && sqliteDb.prepare('SELECT count(*) as c FROM store').get().c === 0) {
+    const data = fs.readFileSync(DB_PATH, "utf-8");
+    const stmt = sqliteDb.prepare('INSERT INTO store (key, value) VALUES (?, ?)');
+    stmt.run('state', data);
+    fs.renameSync(DB_PATH, DB_PATH + ".bak");
+  }
+} catch (err) {
+  console.error("Failed to initialize SQLite:", err);
+}
 
 // Helper to construct a functional search query URL (so it never leads to empty 404 or inactive product pages)
 function getFunctionalUrl(source: string, title: string, model: string): string {
@@ -286,17 +310,64 @@ function seedDatabase() {
   };
 }
 
+function parseCleanPrice(val: any): number {
+  if (val === null || val === undefined || val === "" || val === "-") return 0;
+  if (typeof val === "number") {
+    if (isNaN(val)) return 0;
+    if (val > 2500 && val < 250000) {
+      return Math.round((val / 100) * 100) / 100;
+    }
+    return Math.round(val * 100) / 100;
+  }
+
+  const str = String(val).trim();
+  if (!str || str === "-") return 0;
+
+  let cleanStr = str.replace(/,/g, ".");
+  cleanStr = cleanStr.replace(/[^0-9.]/g, "");
+
+  const parts = cleanStr.split(".");
+  if (parts.length > 2) {
+    cleanStr = parts.slice(0, -1).join("") + "." + parts[parts.length - 1];
+  }
+
+  let num = parseFloat(cleanStr);
+  if (isNaN(num)) return 0;
+
+  if (num > 2500 && num < 250000 && !str.includes(".")) {
+    num = num / 100;
+  }
+
+  return Math.round(num * 100) / 100;
+}
+
+function parseExcelDate(val: any): Date {
+  if (!val) return new Date(0);
+  if (val instanceof Date) return val;
+  if (typeof val === "number") {
+    return new Date(Math.round((val - 25569) * 86400 * 1000));
+  }
+  const str = String(val).trim();
+  const frMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (frMatch) {
+    return new Date(parseInt(frMatch[3], 10), parseInt(frMatch[2], 10) - 1, parseInt(frMatch[1], 10));
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
 // Helper to read and write database
 function readDB() {
   try {
     let db: any;
-    if (!fs.existsSync(DB_PATH)) {
+    const row: any = sqliteDb.prepare('SELECT value FROM store WHERE key = ?').get('state');
+    if (row) {
+      db = JSON.parse(row.value);
+    } else {
       db = seedDatabase();
       writeDB(db);
       return db;
     }
-    const data = fs.readFileSync(DB_PATH, "utf-8");
-    db = JSON.parse(data);
 
     if (!db.evaluations) {
       db.evaluations = {};
@@ -314,6 +385,22 @@ function readDB() {
       let changed = false;
       Object.keys(db.evaluations).forEach(model => {
         const ev = db.evaluations[model];
+
+        // Sanitize medianPrice if stored in 100x format (e.g. 41699 -> 416.99)
+        if (typeof ev.medianPrice === "number" && ev.medianPrice > 2500) {
+          ev.medianPrice = Math.round((ev.medianPrice / 100) * 100) / 100;
+          changed = true;
+        }
+
+        if (ev.historicalPrices && Array.isArray(ev.historicalPrices)) {
+          ev.historicalPrices.forEach((hp: any) => {
+            if (typeof hp.price === "number" && hp.price > 2500) {
+              hp.price = Math.round((hp.price / 100) * 100) / 100;
+              changed = true;
+            }
+          });
+        }
+
         if (ev.listings && Array.isArray(ev.listings)) {
           const origLen = ev.listings.length;
           ev.listings = ev.listings.filter((listing: any) => !isPartOrAssembly(listing.title));
@@ -330,7 +417,7 @@ function readDB() {
             }
 
             // Fix prices concatenated without decimal dot (e.g., 69900 -> 699.00)
-            if (typeof listing.price === "number" && listing.price > 5000) {
+            if (typeof listing.price === "number" && listing.price > 2500) {
               listing.price = Math.round((listing.price / 100) * 100) / 100;
               changed = true;
             }
@@ -380,13 +467,8 @@ function readDB() {
 
 function writeDB(data: any) {
   try {
-    const dataDir = path.join(process.cwd(), "data");
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    const tempPath = path.join(dataDir, `.db-${Math.random().toString(36).substring(2)}.tmp`);
-    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
-    fs.renameSync(tempPath, DB_PATH);
+    const stmt = sqliteDb.prepare('INSERT OR REPLACE INTO store (key, value) VALUES (?, ?)');
+    stmt.run('state', JSON.stringify(data));
   } catch (err) {
     console.error("Error writing database:", err);
   }
@@ -396,7 +478,8 @@ function writeDB(data: any) {
 
 async function startServer() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "100mb" }));
+  app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
   // Support CORS pour la page de chargement autonome file:// (loading.html)
   app.use((req, res, next) => {
@@ -983,10 +1066,10 @@ del "%~f0"
     res.status(404).json({ success: false, message: "Modèle introuvable." });
   });
 
-  const MASTER_FILE_NAME = "DataBase_PrixPc_refurb.xlsx";
+  const MASTER_FILE_NAME = "Import_Manuel.xlsx";
 
   // Endpoint d'importation et de synchronisation de la base de données Excel complète
-  app.post("/api/import-excel", express.json({ limit: "50mb" }), (req, res) => {
+  app.post("/api/import-excel", express.json({ limit: "100mb" }), (req, res) => {
     try {
       const { fileData } = req.body;
       let workbook;
@@ -1007,15 +1090,16 @@ del "%~f0"
 
       const db = readDB();
       if (!db.evaluations) db.evaluations = {};
+      if (!db.customModels) db.customModels = [];
 
-      const modelSheetNames = [
-        "1. Ordinateurs portables", "2. Ordinateurs portables",
-        "2. Ordinateurs de bureau", "3. Ordinateurs de bureau",
-        "3. iPhone", "4. iPhone"
-      ];
       let importedCount = 0;
 
-      modelSheetNames.forEach(sheetName => {
+      // Parcourir TOUS les onglets du classeur Excel de manière dynamique
+      workbook.SheetNames.forEach(sheetName => {
+        const lowerSheet = sheetName.toLowerCase();
+        // Ignorer les onglets purs d'historique global ou d'écarts
+        if (lowerSheet.includes("historique") || lowerSheet.includes("écarts") || lowerSheet.includes("ecarts")) return;
+
         const sheet = workbook.Sheets[sheetName];
         if (!sheet) return;
 
@@ -1023,43 +1107,128 @@ del "%~f0"
         // Grouper les lignes par modèle
         const rowsByModel: Record<string, any[]> = {};
         rows.forEach(r => {
-          const model = r["Modèle"] || r["Modele"];
-          if (model) {
-            if (!rowsByModel[model]) rowsByModel[model] = [];
-            rowsByModel[model].push(r);
+          const model = r["Modèle"] || r["Modele"] || r["Model"] || r["Modèle d'équipement"] || r["Modèle informatique"] || r["Modèle d'ordinateur"];
+          if (model && typeof model === "string" && model.trim()) {
+            const cleanModel = model.trim();
+            if (!rowsByModel[cleanModel]) rowsByModel[cleanModel] = [];
+            rowsByModel[cleanModel].push(r);
           }
         });
 
         Object.keys(rowsByModel).forEach(modelName => {
           const modelRows = rowsByModel[modelName];
           // Trier par date d'analyse croissante
-          modelRows.sort((a, b) => new Date(a["Date analyse"] || 0).getTime() - new Date(b["Date analyse"] || 0).getTime());
+          modelRows.sort((a, b) => {
+            const dateA = parseExcelDate(a["Date analyse"] || a["Date"] || a["Date / Heure"]).getTime();
+            const dateB = parseExcelDate(b["Date analyse"] || b["Date"] || b["Date / Heure"]).getTime();
+            return dateA - dateB;
+          });
 
           const latestRow = modelRows[modelRows.length - 1];
-          const medianPriceNum = parseInt(String(latestRow["Prix médian"] || latestRow["Valeur recommandée"] || "0").replace(/[^0-9]/g, "")) || 0;
+          const rawPrice = latestRow["Prix médian"] || latestRow["Prix Median"] || latestRow["Valeur recommandée"] || latestRow["Prix Actuel Observé (CAD)"] || latestRow["Prix actuel"] || latestRow["Prix"] || "0";
+          const medianPriceNum = parseCleanPrice(rawPrice);
 
           // Reconstruire l'historique des prix
-          const historicalPrices = modelRows.map(r => ({
-            date: r["Date analyse"] || new Date().toISOString().slice(0, 10),
-            price: parseInt(String(r["Prix médian"] || r["Valeur recommandée"] || "0").replace(/[^0-9]/g, "")) || 0,
-            confidence: r["Niveau confiance"] || "Faible"
-          }));
+          const historicalPrices = modelRows.map(r => {
+            const rPrice = r["Prix médian"] || r["Prix Median"] || r["Valeur recommandée"] || r["Prix Actuel Observé (CAD)"] || r["Prix actuel"] || r["Prix"] || "0";
+            const rDate = r["Date analyse"] || r["Date"] || r["Date / Heure"];
+            const parsedD = parseExcelDate(rDate);
+            const dateStr = parsedD.getTime() > 0 ? parsedD.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+            return {
+              date: dateStr,
+              price: parseCleanPrice(rPrice),
+              confidence: r["Niveau confiance"] || r["Confiance"] || "Faible"
+            };
+          });
 
-          const categoryName = latestRow["Catégorie"] || (sheetName.includes("portables") ? "Portables Lenovo" : sheetName.includes("bureau") ? "Desktop Lenovo" : "iPhones");
+          let categoryName = latestRow["Catégorie"] || latestRow["Categorie"] || latestRow["Category"];
+          if (!categoryName) {
+            if (lowerSheet.includes("portable") || lowerSheet.includes("laptop")) categoryName = "Portables Lenovo";
+            else if (lowerSheet.includes("bureau") || lowerSheet.includes("desktop")) categoryName = "Desktop Lenovo";
+            else if (lowerSheet.includes("iphone") || lowerSheet.includes("phone")) categoryName = "iPhones";
+            else categoryName = "Portables Lenovo";
+          }
+
+          // Reconstruire les comparables minimum / médian / maximum pour l'affichage visuel complet du volet de détail
+          const minP = parseCleanPrice(latestRow["Prix minimum"]);
+          const medP = medianPriceNum;
+          const maxP = parseCleanPrice(latestRow["Prix maximum"]);
+          const sourceName = latestRow["Source principale"] || "eBay / Back Market";
+          const urlsList = (latestRow["URLs"] || "").split("|").map((u: string) => u.trim()).filter(Boolean);
+
+          let listings = db.evaluations[modelName]?.listings || [];
+          if (listings.length === 0 && medP > 0) {
+            const reconstructed: any[] = [];
+            const dStr = latestRow["Date analyse"] ? parseExcelDate(latestRow["Date analyse"]).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+            
+            if (minP > 0) {
+              reconstructed.push({
+                id: `${modelName.toLowerCase().replace(/\s+/g, "-")}-import-min`,
+                title: `${modelName} - Offre prix minimum marché`,
+                price: minP,
+                source: sourceName.includes("Back") ? "Back Market" : "eBay",
+                date: dStr,
+                url: urlsList[0] || getFunctionalUrl("eBay", `${modelName} minimum`, modelName),
+                included: true,
+                isOutlier: false,
+                isSimulated: true
+              });
+            }
+
+            reconstructed.push({
+              id: `${modelName.toLowerCase().replace(/\s+/g, "-")}-import-med`,
+              title: `${modelName} - Offre médiane de référence (${latestRow["Configuration"] || "Spécifications d'origine"})`,
+              price: medP,
+              source: sourceName.includes("Back") ? "Back Market" : "eBay",
+              date: dStr,
+              url: urlsList[1] || urlsList[0] || getFunctionalUrl("eBay", `${modelName} median`, modelName),
+              included: true,
+              isOutlier: false,
+              isSimulated: true
+            });
+
+            if (maxP > 0 && maxP !== minP && maxP !== medP) {
+              reconstructed.push({
+                id: `${modelName.toLowerCase().replace(/\s+/g, "-")}-import-max`,
+                title: `${modelName} - Offre haut de gamme avec garantie`,
+                price: maxP,
+                source: sourceName.includes("Back") ? "Back Market" : "eBay",
+                date: dStr,
+                url: urlsList[2] || urlsList[0] || getFunctionalUrl("eBay", `${modelName} max`, modelName),
+                included: true,
+                isOutlier: false,
+                isSimulated: true
+              });
+            }
+
+            listings = reconstructed;
+          }
+
+          const comparablesCountVal = parseInt(String(latestRow["Nombre comparables"] || latestRow["Comparables"] || "0")) || (listings.length > 0 ? listings.length : 1);
 
           db.evaluations[modelName] = {
             modelName,
-            category: db.evaluations[modelName]?.category || categoryName,
+            category: categoryName,
             medianPrice: medianPriceNum,
-            comparablesCount: parseInt(String(latestRow["Nombre comparables"] || "0")) || 0,
-            confidence: latestRow["Niveau confiance"] || "Moyen",
-            lastScraped: latestRow["Date analyse"] ? new Date(latestRow["Date analyse"]).toISOString() : new Date().toISOString(),
-            configuration: latestRow["Configuration"] || "Intel Core i5, 16 Go, 256 Go SSD",
-            condition: latestRow["Condition"] || "Très bon",
-            commentaires: latestRow["Commentaires"] || "",
-            listings: db.evaluations[modelName]?.listings || [],
+            comparablesCount: comparablesCountVal,
+            confidence: latestRow["Niveau confiance"] || latestRow["Confiance"] || "Moyen",
+            lastScraped: latestRow["Date analyse"] ? parseExcelDate(latestRow["Date analyse"]).toISOString() : new Date().toISOString(),
+            configuration: latestRow["Configuration"] || latestRow["Specs"] || "Spécifications d'origine",
+            condition: latestRow["Condition"] || latestRow["État"] || "Très bon",
+            commentaires: latestRow["Commentaires"] || latestRow["Notes"] || "",
+            listings,
             historicalPrices
           };
+
+          // Synchroniser aussi dans customModels si le modèle n'est pas standard
+          const existsInCustom = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === modelName.toLowerCase());
+          if (!existsInCustom) {
+            db.customModels.push({
+              category: categoryName,
+              modelName,
+              addedAt: new Date().toISOString()
+            });
+          }
 
           importedCount++;
         });
@@ -1077,46 +1246,18 @@ del "%~f0"
     }
   });
 
-  // Generate Excel Master Spreadsheet (DataBase_PrixPc_refurb.xlsx) with 5 clean sheets
-  app.post("/api/export-excel", (req, res) => {
+  // Helper function for generating master CSVs and ZIP
+  function generateMasterExcel(targetPath?: string) {
     const db = readDB();
-    const { targetPath } = req.body;
-    const exportDir = targetPath || "I:\\Developpement_des_affaires\\1_Approvisionnement\\Documents\\Etude_de_prix\\";
-
     const evaluations = Object.values(db.evaluations || {}) as any[];
-
-    if (evaluations.length === 0) {
-      res.status(400).json({ success: false, message: "Aucune évaluation enregistrée pour l'exportation." });
-      return;
-    }
 
     const localDir = path.join(process.cwd(), "exports");
     if (!fs.existsSync(localDir)) {
       fs.mkdirSync(localDir, { recursive: true });
     }
 
-    const localMasterPath = path.join(localDir, MASTER_FILE_NAME);
-    let existingWb: any = null;
-    if (fs.existsSync(localMasterPath)) {
-      try {
-        existingWb = XLSX.readFile(localMasterPath);
-      } catch {
-        existingWb = null;
-      }
-    }
-
-    // Helper function to build model sheets with full chronological history
-    const buildModelSheetRows = (cats: string[], sheetName: string) => {
-      let existingRows: any[] = [];
-      if (existingWb && existingWb.Sheets[sheetName]) {
-        try {
-          existingRows = XLSX.utils.sheet_to_json(existingWb.Sheets[sheetName]);
-        } catch {
-          existingRows = [];
-        }
-      }
-
-      // Générer les nouvelles lignes du jour
+    // Helper function to build model sheet data
+    const buildModelSheetRows = (cats: string[]) => {
       const todayStr = new Date().toLocaleDateString("fr-CA");
       const newRows = evaluations
         .filter(ev => cats.includes(ev.category))
@@ -1137,11 +1278,11 @@ del "%~f0"
             "Configuration": ev.configuration || "Intel Core i5, 16 Go, 256 Go SSD",
             "Condition": ev.condition || "Très bon",
             "Nombre comparables": ev.comparablesCount || 0,
-            "Prix minimum": minPrice ? `${minPrice} $` : "-",
-            "Prix médian": ev.medianPrice ? `${ev.medianPrice} $` : "-",
-            "Prix moyen": avgPrice ? `${avgPrice} $` : "-",
-            "Prix maximum": maxPrice ? `${maxPrice} $` : "-",
-            "Valeur recommandée": ev.medianPrice ? `${ev.medianPrice} $` : "-",
+            "Prix minimum": minPrice ? `${minPrice}` : "0",
+            "Prix médian": ev.medianPrice ? `${ev.medianPrice}` : "0",
+            "Prix moyen": avgPrice ? `${avgPrice}` : "0",
+            "Prix maximum": maxPrice ? `${maxPrice}` : "0",
+            "Valeur recommandée": ev.medianPrice ? `${ev.medianPrice}` : "0",
             "Niveau confiance": ev.confidence || "Aucun",
             "Source principale": ev.listings && ev.listings.length > 0 ? ev.listings[0].source : "eBay / Back Market",
             "URLs": urlsStr,
@@ -1149,101 +1290,107 @@ del "%~f0"
           };
         });
 
-      // Fusionner et dédoublonner les lignes par (Date analyse + Modèle)
-      const mergedMap = new Map<string, any>();
-      existingRows.forEach(r => {
-        const key = `${r["Date analyse"] || ""}|${r["Modèle"] || r["Modele"] || ""}`;
-        if (key.trim() !== "|") mergedMap.set(key, r);
-      });
-      newRows.forEach(r => {
-        const key = `${r["Date analyse"] || ""}|${r["Modèle"] || ""}`;
-        if (key.trim() !== "|") mergedMap.set(key, r);
-      });
-
-      const mergedRows = Array.from(mergedMap.values());
-
-      // Trier chronologiquement (Date analyse déclinante), puis Marque, puis Modèle
-      mergedRows.sort((a, b) => {
-        const dateA = new Date(a["Date analyse"] || 0).getTime();
-        const dateB = new Date(b["Date analyse"] || 0).getTime();
-        if (dateB !== dateA) return dateB - dateA;
+      // Trier
+      newRows.sort((a, b) => {
         const brandCompare = String(a["Marque"] || "").localeCompare(String(b["Marque"] || ""));
         if (brandCompare !== 0) return brandCompare;
         return String(a["Modèle"] || "").localeCompare(String(b["Modèle"] || ""));
       });
-
-      return mergedRows;
+      return newRows;
     };
 
-    // Sheet 1: Ordinateurs portables
-    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables HP", "Apple"], "1. Ordinateurs portables");
-    const wsLaptops = XLSX.utils.json_to_sheet(laptopsData);
-
-    // Sheet 2: Ordinateurs de bureau
-    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"], "2. Ordinateurs de bureau");
-    const wsDesktops = XLSX.utils.json_to_sheet(desktopsData);
-
-    // Sheet 3: iPhone
-    const iphoneData = buildModelSheetRows(["iPhones"], "3. iPhone");
-    const wsIphone = XLSX.utils.json_to_sheet(iphoneData);
-
-    // Sheet 4: Historique
+    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables Dell XPS", "Portables HP", "Apple"]);
+    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"]);
+    const iphoneData = buildModelSheetRows(["iPhones"]);
+    
     const historicalLog = db.historicalLog || [];
     const historicalRows = historicalLog.map((log: any) => ({
       "Date / Heure": new Date(log.date).toLocaleString("fr-CA"),
       "Modèle informatique": log.model,
       "Type d'Action": log.action,
-      "Ancien Prix Médian (CAD)": `${log.previousPrice} $`,
-      "Nouveau Prix Médian (CAD)": `${log.currentPrice} $`,
-      "Variation constatée (CAD)": `${log.currentPrice - log.previousPrice} $`,
+      "Ancien Prix Médian (CAD)": `${log.previousPrice}`,
+      "Nouveau Prix Médian (CAD)": `${log.currentPrice}`,
+      "Variation constatée (CAD)": `${log.currentPrice - log.previousPrice}`,
       "Opérateur d'Étude": log.operator
     }));
-    const wsHistorical = XLSX.utils.json_to_sheet(historicalRows);
 
-    // Sheet 5: Écarts depuis la dernière analyse
     const varianceRows = evaluations.map(ev => {
       const prevPrice = ev.historicalPrices && ev.historicalPrices.length > 0 ? ev.historicalPrices[ev.historicalPrices.length - 1].price : ev.medianPrice;
       const diff = ev.medianPrice - prevPrice;
       const pct = prevPrice > 0 ? ((diff / prevPrice) * 100).toFixed(1) : "0.0";
-      const trend = diff > 0 ? "▲ Hausse" : (diff < 0 ? "▼ Baisse" : "● Stable");
+      const trend = diff > 0 ? "Hausse" : (diff < 0 ? "Baisse" : "Stable");
       return {
         "Modèle d'équipement": ev.modelName,
         "Catégorie": ev.category,
-        "Prix Médian Précédent (CAD)": `${prevPrice} $`,
-        "Prix Actuel Observé (CAD)": `${ev.medianPrice} $`,
-        "Écart absolu (CAD)": `${diff} $`,
+        "Prix Médian Précédent (CAD)": `${prevPrice}`,
+        "Prix Actuel Observé (CAD)": `${ev.medianPrice}`,
+        "Écart absolu (CAD)": `${diff}`,
         "Écart relatif (%)": `${pct} %`,
         "Tendance du Marché": trend
       };
     });
-    const wsVariance = XLSX.utils.json_to_sheet(varianceRows);
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsLaptops, "1. Ordinateurs portables");
-    XLSX.utils.book_append_sheet(wb, wsDesktops, "2. Ordinateurs de bureau");
-    XLSX.utils.book_append_sheet(wb, wsIphone, "3. iPhone");
-    XLSX.utils.book_append_sheet(wb, wsHistorical, "4. Historique");
-    XLSX.utils.book_append_sheet(wb, wsVariance, "5. Écarts de prix");
+    const exportToCSV = (data: any[], filename: string) => {
+      if (data.length === 0) return "";
+      const sheet = XLSX.utils.json_to_sheet(data);
+      const csv = XLSX.utils.sheet_to_csv(sheet);
+      const filepath = path.join(localDir, filename);
+      fs.writeFileSync(filepath, csv, "utf-8");
+      return filepath;
+    };
 
-    // Écriture déterministe avec écrasement du fichier maître DataBase_PrixPc_refurb.xlsx
-    XLSX.writeFile(wb, localMasterPath);
+    const zip = new AdmZip();
+    zip.addLocalFile(exportToCSV(laptopsData, "Export_Portables.csv"));
+    zip.addLocalFile(exportToCSV(desktopsData, "Export_Bureau.csv"));
+    zip.addLocalFile(exportToCSV(iphoneData, "Export_iPhones.csv"));
+    zip.addLocalFile(exportToCSV(historicalRows, "Export_Historique.csv"));
+    zip.addLocalFile(exportToCSV(varianceRows, "Export_Ecarts.csv"));
 
-    // Écriture miroir dans le dossier de destination configuré si accessible
-    if (exportDir && fs.existsSync(exportDir)) {
-      try {
-        XLSX.writeFile(wb, path.join(exportDir, MASTER_FILE_NAME));
-      } catch (e) {
-        console.warn("Impossible d'écrire directement sur le lecteur réseau:", e);
+    const zipName = "Export_Donnees_Brutes.zip";
+    const zipPath = path.join(localDir, zipName);
+    zip.writeZip(zipPath);
+
+    return {
+      success: true,
+      fileName: zipName,
+      localMasterPath: zipPath,
+      downloadUrl: `/api/download-excel`,
+      count: evaluations.length
+    };
+  }
+
+  // Generate ZIP with CSVs
+  app.post("/api/export-excel", (req, res) => {
+    try {
+      const result = generateMasterExcel();
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error generating CSV export:", err);
+      res.status(500).json({ success: false, message: `Erreur lors de la génération : ${err.message}` });
+    }
+  });
+
+  // Direct download route for the zip
+  app.get("/api/download-excel", (req, res) => {
+    try {
+      const localDir = path.join(process.cwd(), "exports");
+      const zipPath = path.join(localDir, "Export_Donnees_Brutes.zip");
+
+      if (!fs.existsSync(zipPath)) {
+        generateMasterExcel();
+      }
+
+      res.download(zipPath, "Export_Donnees_Brutes.zip", (err) => {
+        if (err && !res.headersSent) {
+          res.status(500).send("Erreur lors du téléchargement.");
+        }
+      });
+    } catch (err: any) {
+      console.error("Error downloading master Excel file:", err);
+      if (!res.headersSent) {
+        res.status(500).send("Erreur serveur lors du téléchargement.");
       }
     }
-
-    res.json({
-      success: true,
-      fileName: MASTER_FILE_NAME,
-      simulatedPath: path.join(exportDir, MASTER_FILE_NAME),
-      downloadUrl: `/exports/${MASTER_FILE_NAME}`,
-      count: evaluations.length
-    });
   });
 
   // Servir les fichiers Excel générés depuis le dossier persistant /exports/
@@ -1293,6 +1440,15 @@ del "%~f0"
       });
     }
   }
+
+  // Capturer les erreurs globales Express (ex: PayloadTooLargeError, SyntaxError) et les renvoyer en JSON propre
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Global Express Error:", err);
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message || "Erreur interne du serveur backend."
+    });
+  });
 
   const startPort = Number(process.env.PORT) || PORT;
   const HOST = process.env.HOST || "127.0.0.1";

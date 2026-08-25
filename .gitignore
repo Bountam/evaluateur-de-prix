@@ -32,3 +32,6 @@ evaluateur-insertech-portable/dist/
 evaluateur-insertech-portable/node.exe
 evaluateur-insertech-portable/chromium/
 
+
+evaluateur-insertech-portable/
+data/*.sqlite

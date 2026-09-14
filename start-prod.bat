@@ -24,7 +24,7 @@ echo.
 :: Demarrage du serveur avec une boucle infinie de redemarrage (PM2 like simple)
 :restart
 echo [INFO] Demarrage du serveur...
-"node-v22.14.0-win-x64\node.exe" server.ts
+"node-v22.14.0-win-x64\npx.cmd" tsx server.ts
 echo.
 echo [ATTENTION] Le serveur s'est arrete (crash ou fermeture manuelle).
 echo Redemarrage automatique dans 5 secondes... Appuyez sur Ctrl+C pour annuler.

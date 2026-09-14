@@ -335,23 +335,6 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
         </div>
       </div>
 
-      {/* CARD 3: BACKUP RAW SQLITE */}
-      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 p-4 mt-6 flex flex-col sm:flex-row items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-3 mb-3 sm:mb-0">
-          <Database className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-          <div className="text-left">
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Backup Brut (Portable)</h3>
-            <p className="text-xs text-slate-500">Télécharger la base de données SQLite complète pour sauvegarde hors-ligne ou déplacement.</p>
-          </div>
-        </div>
-        <button
-          onClick={() => window.open("/api/export-database", "_blank")}
-          className="py-2 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-bold text-xs flex items-center space-x-2 transition-all cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Télécharger SQLite</span>
-        </button>
-      </div>
     </div>
   );
 }

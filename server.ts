@@ -618,19 +618,6 @@ async function startServer() {
     });
   });
 
-  app.get("/api/export-database", async (req, res) => {
-    try {
-      if (fs.existsSync(SQLITE_PATH)) {
-        res.download(SQLITE_PATH, "database.sqlite");
-      } else {
-        res.status(404).json({ success: false, error: "Base de données introuvable." });
-      }
-    } catch (e: any) {
-      logger.error("Erreur lors de l'exportation de la base de données: " + e.message);
-      res.status(500).json({ success: false, error: e.message });
-    }
-  });
-
   // Get full state of application
   app.get("/api/state", (req, res) => {
     const db = readDB();

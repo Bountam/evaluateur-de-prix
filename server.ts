@@ -569,14 +569,12 @@ async function startServer() {
   // Support CORS sécurisé (mode développement & file:// local)
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (process.env.NODE_ENV === "production") {
-      if (origin && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-      }
-    } else {
+    if (!origin || origin === "null" || origin.startsWith("file://") || origin.includes("localhost") || origin.includes("127.0.0.1")) {
       res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", origin);
     }
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") {
       res.sendStatus(200);

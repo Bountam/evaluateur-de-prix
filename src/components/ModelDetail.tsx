@@ -126,7 +126,7 @@ interface ModelDetailProps {
   modelName: string;
   category: string;
   evaluation: ModelEvaluation | null;
-  onScrapeModel: (model: string, simulateFailure: boolean) => Promise<void>;
+  onScrapeModel: (model: string, simulateFailure: boolean, category?: string) => Promise<void>;
   onUpdateListing: (modelName: string, listingId: string, included: boolean, price?: number) => Promise<void>;
   onUpdateMeta?: (modelName: string, configuration: string, condition: string, commentaires: string) => Promise<void>;
   scrapingLogs: string[];

@@ -71,11 +71,13 @@ export function saveToCache(sourceKey: string, model: string, listings: ScrapedL
   }
 }
 
+export const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours par défaut
+
 /**
- * Charge les derniers résultats depuis le cache segmenté.
+ * Charge les derniers résultats depuis le cache segmenté s'ils ne sont pas expirés.
  * Tous les listings retournés sont marqués `isSimulated: true`.
  */
-export function loadFromCache(sourceKey: string, model: string): ScrapedListing[] | null {
+export function loadFromCache(sourceKey: string, model: string, ttlMs: number = DEFAULT_TTL_MS): ScrapedListing[] | null {
   const filePath = getSafeFilename(sourceKey, model);
 
   try {
@@ -83,6 +85,14 @@ export function loadFromCache(sourceKey: string, model: string): ScrapedListing[
       const raw = fs.readFileSync(filePath, 'utf-8');
       const entry = JSON.parse(raw) as CacheEntry;
       if (entry && entry.listings && entry.listings.length > 0) {
+        const entryTime = new Date(entry.timestamp).getTime();
+        const ageMs = Date.now() - entryTime;
+
+        if (ageMs > ttlMs) {
+          // Cache expiré !
+          return null;
+        }
+
         return entry.listings.map(l => ({
           ...l,
           isSimulated: true,
@@ -94,6 +104,42 @@ export function loadFromCache(sourceKey: string, model: string): ScrapedListing[
     // Fichier corrompu ou illisible
   }
   return null;
+}
+
+/**
+ * Supprime le cache pour un modèle spécifique (toutes sources confondues).
+ */
+export function clearCacheForModel(model: string): void {
+  if (!fs.existsSync(CACHE_DIR)) return;
+  try {
+    const files = fs.readdirSync(CACHE_DIR);
+    const safeModel = model.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_').replace(/__+/g, '_');
+    for (const file of files) {
+      if (file.endsWith(`__${safeModel}.json`)) {
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+      }
+    }
+  } catch (err) {
+    console.error(`⚠️ Cache: Erreur lors du nettoyage pour le modèle ${model}:`, err);
+  }
+}
+
+/**
+ * Supprime le cache pour une source spécifique.
+ */
+export function clearCacheForSource(sourceKey: string): void {
+  if (!fs.existsSync(CACHE_DIR)) return;
+  try {
+    const files = fs.readdirSync(CACHE_DIR);
+    const safeSource = sourceKey.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    for (const file of files) {
+      if (file.startsWith(`${safeSource}__`)) {
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+      }
+    }
+  } catch (err) {
+    console.error(`⚠️ Cache: Erreur lors du nettoyage pour la source ${sourceKey}:`, err);
+  }
 }
 
 /**
@@ -113,3 +159,4 @@ export function clearAllCache(): void {
     }
   }
 }
+

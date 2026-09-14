@@ -9,6 +9,7 @@ interface ExportPanelProps {
 export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string; count: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<{
@@ -17,6 +18,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
     downloadUrl: string;
     count: number;
     fileName: string;
+    errorMessage?: string;
   } | null>(null);
 
   const handleExport = async () => {
@@ -30,21 +32,90 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
           simulatedPath: data.simulatedPath,
           downloadUrl: data.downloadUrl,
           count: data.count,
-          fileName: "Export_Donnees_Brutes.zip"
+          fileName: "Export_Donnees_Brutes.xlsx"
         });
       } else {
-        setResult({ success: false, simulatedPath: "", downloadUrl: "", count: 0, fileName: "" });
+        setResult({
+          success: false,
+          simulatedPath: "",
+          downloadUrl: "",
+          count: 0,
+          fileName: "",
+          errorMessage: "Échec de la génération du fichier sur le serveur."
+        });
       }
-    } catch {
-      setResult({ success: false, simulatedPath: "", downloadUrl: "", count: 0, fileName: "" });
+    } catch (err: any) {
+      setResult({
+        success: false,
+        simulatedPath: "",
+        downloadUrl: "",
+        count: 0,
+        fileName: "",
+        errorMessage: err.message || "Erreur de connexion lors de l'exportation."
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadBlob = async () => {
+    setDownloading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/download-excel");
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Fichier indisponible sur le serveur (Code HTTP ${res.status}). Veuillez d'abord générer l'export.`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Export_Donnees_Brutes.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setResult({
+        success: false,
+        simulatedPath: "",
+        downloadUrl: "",
+        count: 0,
+        fileName: "",
+        errorMessage: err.message || "Échec du téléchargement du fichier Excel."
+      });
+    } finally {
+      setDownloading(false);
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onImport) return;
+
+    // Validation client-side 1: Extension
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'xlsx' && ext !== 'xls') {
+      setImportResult({
+        success: false,
+        message: "Veuillez sélectionner un fichier Excel valide (.xlsx ou .xls).",
+        count: 0
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Validation client-side 2: Taille (< 20 Mo)
+    if (file.size > 20 * 1024 * 1024) {
+      setImportResult({
+        success: false,
+        message: "Fichier trop volumineux. La taille maximale autorisée est de 20 Mo.",
+        count: 0
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
 
     setImporting(true);
     setImportResult(null);
@@ -56,11 +127,24 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
         const res = await onImport(base64Data);
         setImportResult(res);
       } catch (err: any) {
-        setImportResult({ success: false, message: "Échec du chargement du fichier Excel.", count: 0 });
+        setImportResult({
+          success: false,
+          message: err.message || "Échec du traitement du fichier Excel.",
+          count: 0
+        });
       } finally {
         setImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
+    };
+    reader.onerror = () => {
+      setImportResult({
+        success: false,
+        message: "Erreur de lecture du fichier local.",
+        count: 0
+      });
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     };
     reader.readAsDataURL(file);
   };
@@ -74,7 +158,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
           <span>Gestion de la Base de Données</span>
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Importez vos données manuellement depuis <strong>Import_Manuel.xlsx</strong> ou générez votre archive brute (CSV).
+          Importez vos données manuellement depuis <strong>Import_Manuel.xlsx</strong> ou générez votre fichier de sauvegarde (.xlsx).
         </p>
       </div>
 
@@ -109,12 +193,15 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
               accept=".xlsx, .xls"
               className="hidden"
               id="excel-file-input"
+              aria-label="Sélectionner le fichier Excel d'importation"
             />
 
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
-              className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 ${
+              aria-busy={importing}
+              aria-label="Choisir et importer le fichier Import_Manuel.xlsx"
+              className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                 importing ? "opacity-75 cursor-not-allowed" : "active:scale-98"
               }`}
               id="btn-trigger-import"
@@ -134,6 +221,8 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
 
             {importResult && (
               <div
+                role="status"
+                aria-live="polite"
                 className={`p-3 rounded-lg text-xs font-medium flex items-start space-x-2 animate-fadeIn ${
                   importResult.success
                     ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
@@ -163,7 +252,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
                   2. Exporter & Télécharger
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Générer le <strong>fichier ZIP (CSV)</strong>
+                  Générer le <strong>fichier Excel (.xlsx)</strong>
                 </p>
               </div>
             </div>
@@ -173,8 +262,10 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
             <div className="flex flex-col space-y-2">
               <button
                 onClick={handleExport}
-                disabled={loading}
-                className={`w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 ${
+                disabled={loading || downloading}
+                aria-busy={loading}
+                aria-label="Générer l'exportation Excel complète"
+                className={`w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
                   loading ? "opacity-75 cursor-not-allowed" : "active:scale-98"
                 }`}
                 id="btn-trigger-export"
@@ -182,29 +273,44 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
                 {loading ? (
                   <>
                     <RefreshCw className="animate-spin h-4 w-4" />
-                    <span>Génération de l'archive...</span>
+                    <span>Génération du fichier Excel...</span>
                   </>
                 ) : (
                   <>
                     <Archive className="w-4 h-4" />
-                    <span>Générer Export_Donnees_Brutes.zip</span>
+                    <span>Générer Export_Donnees_Brutes.xlsx</span>
                   </>
                 )}
               </button>
 
-              <a
-                href="/api/download-excel"
-                download="Export_Donnees_Brutes.zip"
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center space-x-2 text-center"
+              <button
+                onClick={handleDownloadBlob}
+                disabled={downloading || loading}
+                aria-busy={downloading}
+                aria-label="Télécharger le fichier Excel directement"
+                className={`w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center space-x-2 text-center focus:ring-2 focus:ring-slate-400 focus:outline-none ${
+                  downloading ? "opacity-75 cursor-not-allowed" : "active:scale-98"
+                }`}
                 id="btn-direct-download-excel"
               >
-                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Télécharger l'archive ZIP</span>
-              </a>
+                {downloading ? (
+                  <>
+                    <RefreshCw className="animate-spin h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Téléchargement en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Télécharger le fichier Excel</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {result && (
               <div
+                role="status"
+                aria-live="polite"
                 className={`p-3 rounded-lg text-xs font-medium space-y-2 animate-fadeIn ${
                   result.success
                     ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
@@ -213,16 +319,14 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
                 id="export-result-feedback"
               >
                 {result.success ? (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-bold">Archive générée avec succès ! ({result.count} modèles)</span>
-                    </div>
-                  </>
+                  <div className="flex items-center space-x-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-bold">Fichier Excel généré avec succès ! ({result.count} modèles)</span>
+                  </div>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>Erreur lors de la génération de l'archive.</span>
+                    <span>{result.errorMessage || "Erreur lors de la génération du fichier Excel."}</span>
                   </div>
                 )}
               </div>
@@ -233,3 +337,4 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
     </div>
   );
 }
+

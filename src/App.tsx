@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import ModelDetail from "./components/ModelDetail";
-import ConfigPanel from "./components/ConfigPanel";
+import CategoryLayout from "./components/CategoryLayout";
 import ExportPanel from "./components/ExportPanel";
 import GcsurplusTab from "./components/GcsurplusTab";
 import HistoriqueTab from "./components/HistoriqueTab";
@@ -51,6 +51,15 @@ export default function App() {
     return saved && saved !== "synthese" && saved !== "sources" ? saved : "portables";
   });
   const [scrapingModels, setScrapingModels] = useState<Record<string, { isScraping: boolean; progress: number; logs: string[] }>>({});
+  const activePollIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      activePollIntervalsRef.current.forEach(timer => clearInterval(timer));
+      activePollIntervalsRef.current.clear();
+    };
+  }, []);
+
   const isScraping = !!scrapingModels[selectedModel]?.isScraping;
   const scrapeProgress = scrapingModels[selectedModel]?.progress || 0;
   const scrapingLogs = scrapingModels[selectedModel]?.logs || [];
@@ -167,10 +176,19 @@ export default function App() {
     localStorage.setItem("insertech_activeTab", activeTab);
   }, [activeTab]);
 
-  // Fetch database state from server API with strict no-cache
+  const fetchControllerRef = useRef<AbortController | null>(null);
+
+  // Fetch database state from server API with strict no-cache and cancellation support
   const fetchState = async () => {
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
     try {
       const res = await fetch("/api/state", {
+        signal: controller.signal,
         headers: { "Cache-Control": "no-cache, no-store, must-revalidate" }
       });
       if (res.ok) {
@@ -188,24 +206,33 @@ export default function App() {
       }
 
       // Synchroniser la version exacte renvoyée par le serveur backend
-      const vRes = await fetch("/api/version", { headers: { "Cache-Control": "no-cache" } });
+      const vRes = await fetch("/api/version", {
+        signal: controller.signal,
+        headers: { "Cache-Control": "no-cache" }
+      });
       if (vRes.ok) {
         const vData = await vRes.json();
         if (vData.version) setAppVersion(vData.version);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
       console.error("Error fetching state:", err);
       setErrorMsg("Erreur réseau de communication avec le serveur backend.");
     }
   };
 
-  // Synchronisation automatique en arrière-plan (polling toutes les 3s pour un rafraîchissement 100% automatique)
+  // Synchronisation automatique en arrière-plan (polling toutes les 3s)
   useEffect(() => {
     fetchState();
     const interval = setInterval(() => {
       fetchState();
     }, 3000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (fetchControllerRef.current) {
+        fetchControllerRef.current.abort();
+      }
+    };
   }, []);
 
   // Handle Model Selection
@@ -265,8 +292,32 @@ export default function App() {
         }
       }));
 
+      // Nettoyer un timer précédent si existant pour ce modèle
+      if (activePollIntervalsRef.current.has(model)) {
+        clearInterval(activePollIntervalsRef.current.get(model)!);
+        activePollIntervalsRef.current.delete(model);
+      }
+
+      const pollStartTime = Date.now();
+      const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
       // Poll interval setup
       const pollInterval = setInterval(async () => {
+        if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+          clearInterval(pollInterval);
+          activePollIntervalsRef.current.delete(model);
+          setScrapingModels(prev => ({
+            ...prev,
+            [model]: {
+              isScraping: false,
+              progress: prev[model]?.progress || 0,
+              logs: [...(prev[model]?.logs || []), `⚠️ Délai d'attente dépassé (5 min). Arrêt du suivi.`]
+            }
+          }));
+          setErrorMsg(`La collecte pour "${model}" a dépassé le délai maximum de 5 minutes.`);
+          return;
+        }
+
         try {
           const statusRes = await fetch(`/api/scrape/status?model=${encodeURIComponent(model)}`);
           if (!statusRes.ok) return;
@@ -299,6 +350,7 @@ export default function App() {
 
             if (statusData.status === "completed") {
               clearInterval(pollInterval);
+              activePollIntervalsRef.current.delete(model);
               if (statusData.evaluation) {
                 setEvaluations(prev => ({
                   ...prev,
@@ -319,6 +371,7 @@ export default function App() {
               await fetchState();
             } else if (statusData.status === "failed") {
               clearInterval(pollInterval);
+              activePollIntervalsRef.current.delete(model);
               setErrorMsg(statusData.error || "La tâche d'extraction a échoué.");
             }
           }
@@ -326,6 +379,8 @@ export default function App() {
           console.error("Polling error:", pollErr);
         }
       }, 700);
+
+      activePollIntervalsRef.current.set(model, pollInterval);
 
     } catch (err: any) {
       setScrapingModels(prev => ({
@@ -669,95 +724,71 @@ export default function App() {
 
         {/* Ordinateurs Portables Tab */}
         {activeTab === "portables" && (
-          <div className="flex-1 flex flex-col md:flex-row border border-[#DCDDE1] rounded-lg bg-white shadow-sm overflow-hidden min-h-[500px]" id="portables-layout">
-            <Sidebar
-              selectedModel={selectedModel}
-              onSelectModel={handleSelectModel}
-              evaluations={evaluations}
-              filterCategories={["Portables Lenovo", "Portables Dell", "Portables Dell XPS", "Portables HP", "Apple"]}
-              customModels={customModels}
-              onOpenAddModel={() => setIsAddModalOpen(true)}
-              onScrapeModel={handleScrapeModel}
-              scrapingModels={scrapingModels}
-            />
-            <div className="flex-1 overflow-y-auto p-4 bg-[#F8F9FA]" id="detail-pane">
-              <ModelDetail
-                modelName={selectedModel}
-                category={selectedCategory}
-                evaluation={evaluations[selectedModel] || null}
-                onScrapeModel={handleScrapeModel}
-                onUpdateListing={handleUpdateListing}
-                onUpdateMeta={handleUpdateMeta}
-                scrapingLogs={scrapingLogs}
-                isScraping={isScraping}
-                scrapeProgress={scrapeProgress}
-                concurrency={concurrency}
-                onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
-              />
-            </div>
-          </div>
+          <CategoryLayout
+            id="portables-layout"
+            filterCategories={["Portables Lenovo", "Portables Dell", "Portables Dell XPS", "Portables HP", "Apple"]}
+            selectedModel={selectedModel}
+            onSelectModel={handleSelectModel}
+            evaluations={evaluations}
+            customModels={customModels}
+            onOpenAddModel={() => setIsAddModalOpen(true)}
+            onScrapeModel={handleScrapeModel}
+            scrapingModels={scrapingModels}
+            selectedCategory={selectedCategory}
+            onUpdateListing={handleUpdateListing}
+            onUpdateMeta={handleUpdateMeta}
+            scrapingLogs={scrapingLogs}
+            isScraping={isScraping}
+            scrapeProgress={scrapeProgress}
+            concurrency={concurrency}
+            onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
+          />
         )}
 
         {/* Ordinateurs de Bureau Tab */}
         {activeTab === "desktops" && (
-          <div className="flex-1 flex flex-col md:flex-row border border-[#DCDDE1] rounded-lg bg-white shadow-sm overflow-hidden min-h-[500px]" id="desktops-layout">
-            <Sidebar
-              selectedModel={selectedModel}
-              onSelectModel={handleSelectModel}
-              evaluations={evaluations}
-              filterCategories={["Desktop Lenovo", "Desktop Dell", "Desktop HP"]}
-              customModels={customModels}
-              onOpenAddModel={() => setIsAddModalOpen(true)}
-              onScrapeModel={handleScrapeModel}
-              scrapingModels={scrapingModels}
-            />
-            <div className="flex-1 overflow-y-auto p-4 bg-[#F8F9FA]" id="detail-pane">
-              <ModelDetail
-                modelName={selectedModel}
-                category={selectedCategory}
-                evaluation={evaluations[selectedModel] || null}
-                onScrapeModel={handleScrapeModel}
-                onUpdateListing={handleUpdateListing}
-                onUpdateMeta={handleUpdateMeta}
-                scrapingLogs={scrapingLogs}
-                isScraping={isScraping}
-                scrapeProgress={scrapeProgress}
-                concurrency={concurrency}
-                onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
-              />
-            </div>
-          </div>
+          <CategoryLayout
+            id="desktops-layout"
+            filterCategories={["Desktop Lenovo", "Desktop Dell", "Desktop HP"]}
+            selectedModel={selectedModel}
+            onSelectModel={handleSelectModel}
+            evaluations={evaluations}
+            customModels={customModels}
+            onOpenAddModel={() => setIsAddModalOpen(true)}
+            onScrapeModel={handleScrapeModel}
+            scrapingModels={scrapingModels}
+            selectedCategory={selectedCategory}
+            onUpdateListing={handleUpdateListing}
+            onUpdateMeta={handleUpdateMeta}
+            scrapingLogs={scrapingLogs}
+            isScraping={isScraping}
+            scrapeProgress={scrapeProgress}
+            concurrency={concurrency}
+            onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
+          />
         )}
 
         {/* iPhone Tab */}
         {activeTab === "iphone" && (
-          <div className="flex-1 flex flex-col md:flex-row border border-[#DCDDE1] rounded-lg bg-white shadow-sm overflow-hidden min-h-[500px]" id="iphone-layout">
-            <Sidebar
-              selectedModel={selectedModel}
-              onSelectModel={handleSelectModel}
-              evaluations={evaluations}
-              filterCategories={["iPhones"]}
-              customModels={customModels}
-              onOpenAddModel={() => setIsAddModalOpen(true)}
-              onScrapeModel={handleScrapeModel}
-              scrapingModels={scrapingModels}
-            />
-            <div className="flex-1 overflow-y-auto p-4 bg-[#F8F9FA]" id="detail-pane">
-              <ModelDetail
-                modelName={selectedModel}
-                category={selectedCategory}
-                evaluation={evaluations[selectedModel] || null}
-                onScrapeModel={handleScrapeModel}
-                onUpdateListing={handleUpdateListing}
-                onUpdateMeta={handleUpdateMeta}
-                scrapingLogs={scrapingLogs}
-                isScraping={isScraping}
-                scrapeProgress={scrapeProgress}
-                concurrency={concurrency}
-                onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
-              />
-            </div>
-          </div>
+          <CategoryLayout
+            id="iphone-layout"
+            filterCategories={["iPhones"]}
+            selectedModel={selectedModel}
+            onSelectModel={handleSelectModel}
+            evaluations={evaluations}
+            customModels={customModels}
+            onOpenAddModel={() => setIsAddModalOpen(true)}
+            onScrapeModel={handleScrapeModel}
+            scrapingModels={scrapingModels}
+            selectedCategory={selectedCategory}
+            onUpdateListing={handleUpdateListing}
+            onUpdateMeta={handleUpdateMeta}
+            scrapingLogs={scrapingLogs}
+            isScraping={isScraping}
+            scrapeProgress={scrapeProgress}
+            concurrency={concurrency}
+            onOpenConcurrencyModal={() => setIsConcurrencyModalOpen(true)}
+          />
         )}
 
 
@@ -803,7 +834,7 @@ export default function App() {
           }
           handleSelectModel(model, cat);
           await fetchState();
-          handleScrapeModel(model, false);
+          handleScrapeModel(model, false, cat);
         }}
       />
 

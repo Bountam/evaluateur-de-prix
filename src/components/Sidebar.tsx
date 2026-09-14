@@ -10,7 +10,7 @@ interface SidebarProps {
   filterCategories?: string[];
   customModels?: { category: string; modelName: string }[];
   onOpenAddModel?: () => void;
-  onScrapeModel?: (model: string, simulateFailure: boolean, category: string) => Promise<void>;
+  onScrapeModel?: (model: string, simulateFailure: boolean, category?: string) => Promise<void>;
   scrapingModels?: Record<string, { isScraping: boolean; progress: number; logs: string[] }>;
 }
 

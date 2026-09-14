@@ -8,13 +8,10 @@ import { saveToCache, loadFromCache } from './cache.ts';
 import { getCredentials } from './credentials.ts';
 import { parseCADPrice, cleanProductUrl } from './utils.ts';
 import { getExchangeRates, convertToCAD } from './exchange-rate.ts';
+import { randomHex } from './shared.ts';
 
 const SOURCE = 'Back Market Canada';
 const SOURCE_KEY = 'backmarket';
-
-function randomHex(len: number): string {
-  return [...Array(len)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-}
 
 function buildSearchUrl(model: string): string {
   return `https://www.backmarket.com/en-us/search?q=${encodeURIComponent(model)}`;

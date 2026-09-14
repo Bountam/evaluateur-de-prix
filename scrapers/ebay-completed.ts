@@ -7,27 +7,14 @@ import type { ScraperModule, ScrapedListing, ScraperResult, LogFn } from './type
 import { saveToCache, loadFromCache } from './cache.ts';
 import { getCredentials } from './credentials.ts';
 import { parseCADPrice, cleanProductUrl } from './utils.ts';
+import { randomHex, isOutlierTitle } from './shared.ts';
 
 const SOURCE = 'eBay (Ventes complétées)';
 const SOURCE_KEY = 'ebay-completed';
 
-function randomHex(len: number): string {
-  return [...Array(len)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
 function buildSearchUrl(model: string): string {
   const encoded = encodeURIComponent(model);
   return `https://www.ebay.ca/sch/i.html?_nkw=${encoded}&_sacat=0&LH_Complete=1&LH_Sold=1&_ipg=60`;
-}
-
-function isOutlierTitle(title: string): boolean {
-  const titleLower = title.toLowerCase();
-  return titleLower.includes('pièces') || titleLower.includes('parts') ||
-    titleLower.includes('réparation') || titleLower.includes('repair') ||
-    titleLower.includes('case only') || titleLower.includes('boîtier seulement') ||
-    titleLower.includes('for parts') || titleLower.includes('broken') ||
-    titleLower.includes('cassé') || titleLower.includes('box only') ||
-    titleLower.includes('boîte seulement');
 }
 
 function parseHtmlListings($: cheerio.CheerioAPI): ScrapedListing[] {

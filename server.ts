@@ -14,6 +14,16 @@ import { clearAllCache, clearCacheForModel, clearCacheForSource } from "./scrape
 import AdmZip from "adm-zip";
 import { DatabaseSync } from "node:sqlite";
 import type { AppState, ModelEvaluation, ComparableListing, DataSource, SiteSelectors, SelfHealingStatus, HistoricalLogEntry } from "./src/types.ts";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import morgan from "morgan";
+import winston from "winston";
+import DailyRotateFile from "winston-daily-rotate-file";
+import compression from "compression";
+import dotenv from "dotenv";
+
+dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -33,6 +43,31 @@ interface ScrapingJob {
 }
 
 const activeJobs: Record<string, ScrapingJob> = {};
+
+const logDir = path.join(process.cwd(), "logs");
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.printf(info => `${info.timestamp} [${info.level.toUpperCase()}]: ${info.message}`)
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new DailyRotateFile({
+      filename: path.join(logDir, "app-%DATE%.log"),
+      datePattern: "YYYY-MM-DD",
+      maxSize: "20m",
+      maxFiles: "14d"
+    })
+  ]
+});
+
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+console.log = (...args) => { logger.info(args.join(" ")); originalConsoleLog(...args); };
+console.error = (...args) => { logger.error(args.join(" ")); originalConsoleError(...args); };
 
 let sqliteDb: DatabaseSync;
 try {
@@ -507,6 +542,27 @@ function writeDB(data: any) {
 
 async function startServer() {
   const app = express();
+  
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(compression());
+  
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: "Trop de requêtes, veuillez réessayer plus tard." }
+  });
+  
+  const intensiveLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: { success: false, error: "Trop de requêtes lourdes. Ralentissez." }
+  });
+
+  app.use(morgan("combined", { stream: { write: (message) => logger.info(message.trim()) } }));
+  app.use("/api/", apiLimiter);
+
   app.use(express.json({ limit: "20mb" }));
   app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
@@ -548,6 +604,34 @@ async function startServer() {
   });
 
   // --- API ROUTES ---
+
+  app.get("/api/health", (req, res) => {
+    const memory = process.memoryUsage();
+    res.json({
+      success: true,
+      status: "UP",
+      timestamp: new Date().toISOString(),
+      memory: {
+        rss: Math.round(memory.rss / 1024 / 1024) + " MB",
+        heapTotal: Math.round(memory.heapTotal / 1024 / 1024) + " MB",
+        heapUsed: Math.round(memory.heapUsed / 1024 / 1024) + " MB"
+      },
+      dbStatus: sqliteDb ? "Connected" : "Disconnected"
+    });
+  });
+
+  app.get("/api/export-database", async (req, res) => {
+    try {
+      if (fs.existsSync(SQLITE_PATH)) {
+        res.download(SQLITE_PATH, "database.sqlite");
+      } else {
+        res.status(404).json({ success: false, error: "Base de données introuvable." });
+      }
+    } catch (e: any) {
+      logger.error("Erreur lors de l'exportation de la base de données: " + e.message);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
 
   // Get full state of application
   app.get("/api/state", (req, res) => {
@@ -915,7 +999,7 @@ del "%~f0"
   });
 
   // Run scraper job (Non-blocking background job with real-time status polling)
-  app.post("/api/scrape", (req, res) => {
+  app.post("/api/scrape", intensiveLimiter, (req, res) => {
     const { model, category, simulateFailure, operator, concurrency } = req.body;
     
     const db = readDB();
@@ -1198,7 +1282,7 @@ del "%~f0"
   const MASTER_FILE_NAME = "Import_Manuel.xlsx";
 
   // Endpoint d'importation et de synchronisation de la base de données Excel complète
-  app.post("/api/import-excel", express.json({ limit: "20mb" }), async (req, res) => {
+  app.post("/api/import-excel", intensiveLimiter, express.json({ limit: "20mb" }), async (req, res) => {
     try {
       const { fileData } = req.body;
       let workbook: XLSX.WorkBook;

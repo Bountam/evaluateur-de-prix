@@ -10,6 +10,7 @@ if exist "node-v22.14.0-win-x64\node.exe" set NODE_BIN="%~dp0node-v22.14.0-win-x
 if exist "%~dp0node.exe" set NODE_BIN="%~dp0node.exe"
 
 set NODE_ENV=production
+set HOST=127.0.0.1
 set PORT=3000
 
 echo [INFO] Environnement: %NODE_ENV%

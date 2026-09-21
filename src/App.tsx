@@ -298,26 +298,8 @@ export default function App() {
         activePollIntervalsRef.current.delete(model);
       }
 
-      const pollStartTime = Date.now();
-      const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-
-      // Poll interval setup
+      // Suivi continu sans délai d'attente artificiel (attente complète des données)
       const pollInterval = setInterval(async () => {
-        if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
-          clearInterval(pollInterval);
-          activePollIntervalsRef.current.delete(model);
-          setScrapingModels(prev => ({
-            ...prev,
-            [model]: {
-              isScraping: false,
-              progress: prev[model]?.progress || 0,
-              logs: [...(prev[model]?.logs || []), `⚠️ Délai d'attente dépassé (5 min). Arrêt du suivi.`]
-            }
-          }));
-          setErrorMsg(`La collecte pour "${model}" a dépassé le délai maximum de 5 minutes.`);
-          return;
-        }
-
         try {
           const statusRes = await fetch(`/api/scrape/status?model=${encodeURIComponent(model)}`);
           if (!statusRes.ok) return;
@@ -378,7 +360,7 @@ export default function App() {
         } catch (pollErr: any) {
           console.error("Polling error:", pollErr);
         }
-      }, 700);
+      }, 1000);
 
       activePollIntervalsRef.current.set(model, pollInterval);
 

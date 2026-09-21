@@ -181,7 +181,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pt-2">
-              Sélectionnez le fichier <strong>Import_Manuel.xlsx</strong> pour intégrer vos propres données à l'application. 
+              Sélectionnez votre fichier de sauvegarde <strong>Export_Donnees_Brutes.xlsx</strong> ou un fichier personnalisé <strong>Import_Manuel.xlsx</strong> pour restaurer fidèlement la base de données.
             </p>
           </div>
 
@@ -200,7 +200,7 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
               aria-busy={importing}
-              aria-label="Choisir et importer le fichier Import_Manuel.xlsx"
+              aria-label="Choisir et importer le fichier Excel"
               className={`w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                 importing ? "opacity-75 cursor-not-allowed" : "active:scale-98"
               }`}
@@ -214,10 +214,22 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
               ) : (
                 <>
                   <Upload className="w-4 h-4" />
-                  <span>Choisir Import_Manuel.xlsx</span>
+                  <span>Choisir un fichier Excel (.xlsx)</span>
                 </>
               )}
             </button>
+
+            <div className="pt-1 text-center">
+              <a
+                href="/api/download-template"
+                download="Import_Manuel_Gabarit.xlsx"
+                className="inline-flex items-center space-x-1.5 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline font-medium"
+                id="link-download-template"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Télécharger le gabarit d'importation vierge (.xlsx)</span>
+              </a>
+            </div>
 
             {importResult && (
               <div
@@ -249,13 +261,17 @@ export default function ExportPanel({ onExport, onImport }: ExportPanelProps) {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                  2. Exporter & Télécharger
+                  2. Exporter & Sauvegarder
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Générer le <strong>fichier Excel (.xlsx)</strong>
+                  Sauvegarde <strong>Excel Exhaustive (.xlsx)</strong>
                 </p>
               </div>
             </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pt-2">
+              Génère un classeur complet incluant l'<strong>Inventaire Global</strong>, 100% des <strong>annonces comparables</strong>, tout l'<strong>historique des prix</strong> et le <strong>journal d'audit</strong>. Ce fichier peut être ré-importé directement sur n'importe quel poste.
+            </p>
           </div>
 
           <div className="space-y-3">

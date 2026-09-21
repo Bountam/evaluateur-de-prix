@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 import * as cheerio from "cheerio";
 import { orchestrateScraping, flagOutliers, calculateMedian, determineConfidence } from "./scrapers/orchestrator.ts";
 import { getCredentials, saveCredentials } from "./scrapers/credentials.ts";
-import { isPartOrAssembly, extractSpecsFromTitle, parseCADPrice } from "./scrapers/utils.ts";
+import { isPartOrAssembly, extractSpecsFromTitle } from "./scrapers/utils.ts";
 import { clearAllCache, clearCacheForModel, clearCacheForSource } from "./scrapers/cache.ts";
 import AdmZip from "adm-zip";
 import { DatabaseSync } from "node:sqlite";
@@ -417,6 +417,16 @@ function parseExcelDate(val: any): Date {
   return isNaN(d.getTime()) ? new Date(0) : d;
 }
 
+function parseCADPrice(val: any): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : Math.round(val * 100) / 100;
+  const str = String(val).replace(/[\s\u00A0]/g, "").replace(/\$/g, "").replace(/CAD/gi, "").replace(/,/g, ".");
+  const match = str.match(/[-+]?[0-9]*\.?[0-9]+/);
+  if (!match) return 0;
+  const num = parseFloat(match[0]);
+  return isNaN(num) ? 0 : Math.round(num * 100) / 100;
+}
+
 // Lecture brute de la base de données sans effet de bord
 function readDBRaw(): AppState {
   try {
@@ -548,15 +558,16 @@ async function startServer() {
   
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 1000,
+    max: 50000,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.path.includes("/scrape/status") || req.path.includes("/state") || req.path.includes("/version") || req.path.includes("/health"),
     message: { success: false, error: "Trop de requêtes, veuillez réessayer plus tard." }
   });
   
   const intensiveLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 1000,
     message: { success: false, error: "Trop de requêtes lourdes. Ralentissez." }
   });
 
@@ -1339,20 +1350,37 @@ del "%~f0"
         const db = readDB();
         if (!db.evaluations) db.evaluations = {};
         if (!db.customModels) db.customModels = [];
+        if (!db.historicalLog) db.historicalLog = [];
+        if (!db.gcsurplusLots) db.gcsurplusLots = [];
 
-        let importedCount = 0;
+        const importedModelsSet = new Set<string>();
+        let importedComparablesCount = 0;
+        let importedPricesCount = 0;
+        let importedAuditCount = 0;
+        let importedCustomCount = 0;
+        let importedLotsCount = 0;
 
-        // Parcourir TOUS les onglets du classeur Excel de manière dynamique
-        workbook.SheetNames.forEach(sheetName => {
-          const lowerSheet = sheetName.toLowerCase();
-          // Ignorer les onglets purs d'historique global ou d'écarts
-          if (lowerSheet.includes("historique") || lowerSheet.includes("écarts") || lowerSheet.includes("ecarts")) return;
+        // 1. Détection intelligente de la source des modèles
+        // Si l'onglet universel "Inventaire Global" ou "Tous les Modèles" existe, on l'utilise en priorité
+        const universalSheetName = workbook.SheetNames.find(s => {
+          const l = s.toLowerCase();
+          return l === "inventaire global" || l === "tous les modèles" || l === "tous les modeles" || l === "modèles à importer" || l === "modeles a importer";
+        });
 
+        const sheetsToProcessForModels = universalSheetName 
+          ? [universalSheetName] 
+          : workbook.SheetNames.filter(s => {
+              const l = s.toLowerCase();
+              return !l.includes("comparable") && !l.includes("historique") && !l.includes("audit") && 
+                     !l.includes("écart") && !l.includes("ecart") && !l.includes("métadonnée") && 
+                     !l.includes("metadonnee") && !l.includes("gcsurplus") && !l.includes("personnalisé") && !l.includes("personnalise");
+            });
+
+        sheetsToProcessForModels.forEach(sheetName => {
           const sheet = workbook.Sheets[sheetName];
           if (!sheet) return;
 
           const rows = XLSX.utils.sheet_to_json(sheet) as any[];
-          // Grouper les lignes par modèle
           const rowsByModel: Record<string, any[]> = {};
           rows.forEach(r => {
             const model = r["Modèle"] || r["Modele"] || r["Model"] || r["Modèle d'équipement"] || r["Modèle informatique"] || r["Modèle d'ordinateur"];
@@ -1365,7 +1393,6 @@ del "%~f0"
 
           Object.keys(rowsByModel).forEach(modelName => {
             const modelRows = rowsByModel[modelName];
-            // Trier par date d'analyse croissante
             modelRows.sort((a, b) => {
               const dateA = parseExcelDate(a["Date analyse"] || a["Date"] || a["Date / Heure"]).getTime();
               const dateB = parseExcelDate(b["Date analyse"] || b["Date"] || b["Date / Heure"]).getTime();
@@ -1373,36 +1400,39 @@ del "%~f0"
             });
 
             const latestRow = modelRows[modelRows.length - 1];
-            const rawPrice = latestRow["Prix médian"] || latestRow["Prix Median"] || latestRow["Valeur recommandée"] || latestRow["Prix Actuel Observé (CAD)"] || latestRow["Prix actuel"] || latestRow["Prix"] || "0";
+            const rawPrice = latestRow["Prix médian (CAD)"] || latestRow["Prix médian"] || latestRow["Prix Median"] || 
+                             latestRow["Valeur recommandée (CAD)"] || latestRow["Valeur recommandée"] || 
+                             latestRow["Prix Actuel Observé (CAD)"] || latestRow["Prix actuel"] || latestRow["Prix"] || "0";
             const medianPriceNum = parseCADPrice(rawPrice) || 0;
 
-            // Reconstruire l'historique des prix
             const historicalPrices = modelRows.map(r => {
-              const rPrice = r["Prix médian"] || r["Prix Median"] || r["Valeur recommandée"] || r["Prix Actuel Observé (CAD)"] || r["Prix actuel"] || r["Prix"] || "0";
+              const rPrice = r["Prix médian (CAD)"] || r["Prix médian"] || r["Prix Median"] || 
+                             r["Valeur recommandée (CAD)"] || r["Valeur recommandée"] || 
+                             r["Prix Actuel Observé (CAD)"] || r["Prix actuel"] || r["Prix"] || "0";
               const rDate = r["Date analyse"] || r["Date"] || r["Date / Heure"];
               const parsedD = parseExcelDate(rDate);
               const dateStr = parsedD.getTime() > 0 ? parsedD.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
               return {
                 date: dateStr,
                 price: parseCADPrice(rPrice) || 0,
-                confidence: r["Niveau confiance"] || r["Confiance"] || "Faible"
+                confidence: r["Niveau confiance"] || r["Confiance"] || "Moyen"
               };
             });
 
             let categoryName = latestRow["Catégorie"] || latestRow["Categorie"] || latestRow["Category"];
             if (!categoryName) {
+              const lowerSheet = sheetName.toLowerCase();
               if (lowerSheet.includes("portable") || lowerSheet.includes("laptop")) categoryName = "Portables Lenovo";
               else if (lowerSheet.includes("bureau") || lowerSheet.includes("desktop")) categoryName = "Desktop Lenovo";
               else if (lowerSheet.includes("iphone") || lowerSheet.includes("phone")) categoryName = "iPhones";
               else categoryName = "Portables Lenovo";
             }
 
-            // Reconstruire les comparables minimum / médian / maximum pour l'affichage visuel complet du volet de détail
-            const minP = parseCADPrice(latestRow["Prix minimum"]) || 0;
+            const minP = parseCADPrice(latestRow["Prix minimum (CAD)"] || latestRow["Prix minimum"]) || 0;
             const medP = medianPriceNum;
-            const maxP = parseCADPrice(latestRow["Prix maximum"]) || 0;
+            const maxP = parseCADPrice(latestRow["Prix maximum (CAD)"] || latestRow["Prix maximum"]) || 0;
             const sourceName = latestRow["Source principale"] || "eBay / Back Market";
-            const urlsList = (latestRow["URLs"] || "").split("|").map((u: string) => u.trim()).filter(Boolean);
+            const urlsList = (latestRow["URLs principales"] || latestRow["URLs"] || "").split("|").map((u: string) => u.trim()).filter(Boolean);
 
             let listings = db.evaluations[modelName]?.listings || [];
             if (listings.length === 0 && medP > 0) {
@@ -1452,7 +1482,16 @@ del "%~f0"
               listings = reconstructed;
             }
 
-            const comparablesCountVal = parseInt(String(latestRow["Nombre comparables"] || latestRow["Comparables"] || "0")) || (listings.length > 0 ? listings.length : 1);
+            const comparablesCountVal = parseInt(String(latestRow["Nombre comparables"] || latestRow["Comparables"] || "0"), 10) || (listings.length > 0 ? listings.length : 1);
+
+            // Fusionner l'historique des prix sans doublon de date
+            const existingHP = db.evaluations[modelName]?.historicalPrices || [];
+            const mergedHP = [...existingHP];
+            historicalPrices.forEach(hp => {
+              if (!mergedHP.some(e => e.date === hp.date)) {
+                mergedHP.push(hp);
+              }
+            });
 
             db.evaluations[modelName] = {
               modelName,
@@ -1465,29 +1504,245 @@ del "%~f0"
               condition: latestRow["Condition"] || latestRow["État"] || "Très bon",
               commentaires: latestRow["Commentaires"] || latestRow["Notes"] || "",
               listings,
-              historicalPrices
+              historicalPrices: mergedHP
             };
 
-            // Synchroniser aussi dans customModels si le modèle n'est pas standard
             const existsInCustom = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === modelName.toLowerCase());
             if (!existsInCustom) {
               db.customModels.push({
                 category: categoryName,
                 modelName,
-                addedAt: new Date().toISOString()
+                addedAt: new Date().toISOString(),
+                configuration: latestRow["Configuration"] || ""
               });
             }
 
-            importedCount++;
+            importedModelsSet.add(modelName.toLowerCase());
           });
+        });
+
+        // 2. Restauration exhaustive des annonces comparables si l'onglet dédié existe
+        workbook.SheetNames.forEach(sheetName => {
+          const lowerSheet = sheetName.toLowerCase();
+          if (lowerSheet.includes("comparable") || lowerSheet.includes("listing")) {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+              const listingsByModel: Record<string, any[]> = {};
+              rows.forEach(r => {
+                const model = r["Modèle"] || r["Modele"] || r["Model"];
+                if (model && typeof model === "string" && model.trim()) {
+                  const cleanModel = model.trim();
+                  if (!listingsByModel[cleanModel]) listingsByModel[cleanModel] = [];
+                  
+                  const rawPrice = r["Prix final (CAD)"] || r["Prix (CAD)"] || r["Prix final"] || r["Prix"] || "0";
+                  const origPriceRaw = r["Prix d'origine (CAD)"] || r["Prix d'origine"] || r["Original Price"];
+                  const discountAmtRaw = r["Rabais ($)"] || r["Rabais"] || r["Discount"];
+                  const discountPctRaw = r["Rabais (%)"] || r["Discount %"];
+                  
+                  const price = parseCADPrice(rawPrice);
+                  const origPrice = origPriceRaw ? parseCADPrice(origPriceRaw) : undefined;
+                  const discountAmt = discountAmtRaw ? parseCADPrice(discountAmtRaw) : undefined;
+                  const discountPct = discountPctRaw ? parseFloat(String(discountPctRaw).replace("%", "").trim()) : undefined;
+                  
+                  const source = r["Source"] || "eBay";
+                  const title = r["Titre de l'annonce"] || r["Titre"] || `${cleanModel} - Offre marché`;
+                  const rawDate = r["Date relevée"] || r["Date"] || r["Date analyse"];
+                  const dateStr = rawDate ? (parseExcelDate(rawDate).getTime() > 0 ? parseExcelDate(rawDate).toISOString().slice(0, 10) : String(rawDate).slice(0, 10)) : new Date().toISOString().slice(0, 10);
+                  const url = r["URL de l'offre"] || r["URL"] || r["Url"] || "";
+                  const includedStr = String(r["Inclus (Calcul Médiane)"] || r["Inclus"] || "Oui").toLowerCase();
+                  const outlierStr = String(r["Anomalie (Outlier)"] || r["Anomalie"] || "Non").toLowerCase();
+                  const saleType = r["Type de vente"] || "Achat immédiat";
+                  const currency = r["Devise source"] || r["Devise d'origine"] || "CAD";
+                  const exchangeRate = r["Taux de change"] ? parseFloat(String(r["Taux de change"])) : 1.0;
+                  
+                  listingsByModel[cleanModel].push({
+                    id: `${cleanModel.toLowerCase().replace(/\s+/g, "-")}-cmp-${listingsByModel[cleanModel].length + 1}`,
+                    title,
+                    price,
+                    originalPrice: origPrice,
+                    discountAmount: discountAmt,
+                    discountPercent: discountPct,
+                    currency,
+                    exchangeRate,
+                    source,
+                    saleType,
+                    date: dateStr,
+                    url: url || getFunctionalUrl(source, title, cleanModel),
+                    included: includedStr !== "non" && includedStr !== "false" && includedStr !== "0",
+                    isOutlier: outlierStr === "oui" || outlierStr === "true" || outlierStr === "1",
+                    specs: r["Spécifications"] ? { cpu: String(r["Spécifications"]) } : undefined
+                  });
+                  importedComparablesCount++;
+                }
+              });
+
+              // Associer aux modèles correspondants avec tolérance de casse
+              const modelKeys = Object.keys(db.evaluations);
+              Object.keys(listingsByModel).forEach(model => {
+                const matchedKey = modelKeys.find(k => k.toLowerCase() === model.toLowerCase()) || model;
+                if (db.evaluations[matchedKey] && listingsByModel[model].length > 0) {
+                  db.evaluations[matchedKey].listings = listingsByModel[model];
+                  db.evaluations[matchedKey].comparablesCount = listingsByModel[model].filter((l: any) => l.included && !l.isOutlier).length;
+                }
+              });
+            }
+          }
+        });
+
+        // 3. Restauration de l'historique complet des prix
+        workbook.SheetNames.forEach(sheetName => {
+          const lowerSheet = sheetName.toLowerCase();
+          if (lowerSheet.includes("historique des prix") || lowerSheet.includes("historique_prix") || lowerSheet.includes("price history")) {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+              const modelKeys = Object.keys(db.evaluations);
+              rows.forEach(r => {
+                const model = r["Modèle"] || r["Modele"] || r["Model"];
+                if (model && typeof model === "string" && model.trim()) {
+                  const cleanModel = model.trim();
+                  const matchedKey = modelKeys.find(k => k.toLowerCase() === cleanModel.toLowerCase()) || cleanModel;
+                  if (db.evaluations[matchedKey]) {
+                    const rawDate = r["Date"] || r["Date / Heure"];
+                    const parsedD = parseExcelDate(rawDate);
+                    const hpDate = parsedD.getTime() > 0 ? parsedD.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+                    const hpPrice = parseCADPrice(r["Prix Médian (CAD)"] || r["Prix Médian"] || r["Prix"]) || 0;
+                    const hpConf = r["Niveau Confiance"] || r["Confiance"] || "Moyen";
+                    if (!db.evaluations[matchedKey].historicalPrices) db.evaluations[matchedKey].historicalPrices = [];
+                    const exists = db.evaluations[matchedKey].historicalPrices.some((existing: any) => existing.date === hpDate);
+                    if (!exists && hpPrice > 0) {
+                      db.evaluations[matchedKey].historicalPrices.push({ date: hpDate, price: hpPrice, confidence: hpConf });
+                      importedPricesCount++;
+                    }
+                  }
+                }
+              });
+              // Trier l'historique chronologiquement pour chaque modèle
+              Object.keys(db.evaluations).forEach(k => {
+                if (db.evaluations[k].historicalPrices) {
+                  db.evaluations[k].historicalPrices.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                }
+              });
+            }
+          }
+        });
+
+        // 4. Restauration des modèles personnalisés
+        workbook.SheetNames.forEach(sheetName => {
+          const lowerSheet = sheetName.toLowerCase();
+          if (lowerSheet.includes("personnalisé") || lowerSheet.includes("personnalise") || lowerSheet.includes("custom")) {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+              rows.forEach(r => {
+                const model = r["Modèle"] || r["Modele"] || r["Model"];
+                const category = r["Catégorie"] || r["Categorie"] || "Portables Lenovo";
+                const addedAt = r["Date d'ajout"] || r["Date"] || new Date().toISOString();
+                const configuration = r["Configuration"] || r["Specs"] || "";
+                if (model && typeof model === "string" && model.trim()) {
+                  const cleanModel = model.trim();
+                  const exists = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === cleanModel.toLowerCase());
+                  if (!exists) {
+                    db.customModels.push({
+                      modelName: cleanModel,
+                      category,
+                      addedAt: typeof addedAt === "string" ? addedAt : new Date().toISOString(),
+                      configuration
+                    });
+                    importedCustomCount++;
+                  }
+                }
+              });
+            }
+          }
+        });
+
+        // 5. Restauration du journal d'audit
+        workbook.SheetNames.forEach(sheetName => {
+          const lowerSheet = sheetName.toLowerCase();
+          if (lowerSheet.includes("journal d'audit") || lowerSheet.includes("historique global") || lowerSheet.includes("audit")) {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+              rows.forEach(r => {
+                const rawDate = r["Date / Heure"] || r["Date"] || r["Date/Heure"];
+                const parsedD = parseExcelDate(rawDate);
+                const logDate = parsedD.getTime() > 0 ? parsedD.toISOString() : new Date().toISOString();
+                const logModel = r["Modèle informatique"] || r["Modèle"] || r["Modele"] || "";
+                if (logModel) {
+                  const exists = db.historicalLog.some((l: any) => l.date === logDate && l.model.toLowerCase() === logModel.toLowerCase());
+                  if (!exists) {
+                    db.historicalLog.push({
+                      id: `log-import-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                      date: logDate,
+                      model: logModel,
+                      action: r["Type d'Action"] || r["Action"] || "Importation Excel",
+                      previousPrice: parseCADPrice(r["Ancien Prix Médian (CAD)"] || r["Ancien Prix"]) || 0,
+                      currentPrice: parseCADPrice(r["Nouveau Prix Médian (CAD)"] || r["Nouveau Prix"]) || 0,
+                      operator: r["Opérateur d'Étude"] || r["Opérateur"] || "Système (Import Excel)"
+                    });
+                    importedAuditCount++;
+                  }
+                }
+              });
+              db.historicalLog.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            }
+          }
+        });
+
+        // 6. Restauration des lots GCSurplus si présents
+        workbook.SheetNames.forEach(sheetName => {
+          const lowerSheet = sheetName.toLowerCase();
+          if (lowerSheet.includes("gcsurplus") || lowerSheet.includes("lots")) {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+              rows.forEach(r => {
+                const lotNum = String(r["Numéro de lot"] || r["Numéro Lot"] || r["Lot #"] || "").trim();
+                if (lotNum) {
+                  const exists = db.gcsurplusLots.some((lot: any) => lot.lotNumber === lotNum);
+                  if (!exists) {
+                    db.gcsurplusLots.push({
+                      id: `lot-import-${lotNum}`,
+                      lotNumber: lotNum,
+                      title: r["Titre"] || `Lot ${lotNum}`,
+                      closingDate: r["Date de clôture"] || r["Clôture"] || "",
+                      currentBid: parseCADPrice(r["Mise actuelle (CAD)"] || r["Mise actuelle"] || 0),
+                      quantity: parseInt(String(r["Quantité"] || 1), 10) || 1,
+                      unitPrice: parseCADPrice(r["Prix unitaire (CAD)"] || r["Prix unitaire"] || 0),
+                      status: (r["Statut"] || "Actif") as any,
+                      url: r["URL"] || "",
+                      location: r["Emplacement"] || "Montréal, QC",
+                      authorized: true,
+                      comments: r["Commentaires"] || ""
+                    });
+                    importedLotsCount++;
+                  }
+                }
+              });
+            }
+          }
         });
 
         writeDB(db);
 
+        // Invalider le cache du hash pour regénérer un export frais si demandé
+        cachedStateHash = null;
+
+        const totalModelsCount = importedModelsSet.size;
         res.json({
           success: true,
-          count: importedCount,
-          message: `Base de données complète (${importedCount} modèles et leurs historiques) importée avec succès !`
+          count: totalModelsCount,
+          details: {
+            models: totalModelsCount,
+            comparables: importedComparablesCount,
+            historicalPrices: importedPricesCount,
+            auditLogs: importedAuditCount,
+            customModels: importedCustomCount,
+            gcsurplusLots: importedLotsCount
+          },
+          message: `Base de données restaurée avec succès : ${totalModelsCount} modèles synchronisés${importedComparablesCount > 0 ? `, ${importedComparablesCount} annonces comparables` : ''}${importedPricesCount > 0 ? `, ${importedPricesCount} relevés d'historique` : ''}${importedAuditCount > 0 ? `, ${importedAuditCount} événements d'audit` : ''} !`
         });
       });
     } catch (err: any) {
@@ -1497,7 +1752,7 @@ del "%~f0"
 
   let cachedStateHash: string | null = null;
 
-  // Helper function for generating master CSVs and ZIP
+  // Helper pour générer l'export Excel 100% exhaustif et ré-importable
   function generateMasterExcel(targetPath?: string) {
     const db = readDB();
     const dbStr = JSON.stringify(db.evaluations || {});
@@ -1524,64 +1779,114 @@ del "%~f0"
       fs.mkdirSync(localDir, { recursive: true });
     }
 
-    // Helper function to build model sheet data
-    const buildModelSheetRows = (cats: string[]) => {
-      const todayStr = new Date().toLocaleDateString("fr-CA");
-      const newRows = evaluations
-        .filter(ev => cats.includes(ev.category))
-        .map(ev => {
-          const prices = ev.listings ? ev.listings.filter((l: any) => l.included).map((l: any) => l.price) : [];
-          const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-          const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
-          const avgPrice = prices.length > 0 ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length) : 0;
-          const urlsStr = ev.listings ? ev.listings.filter((l: any) => l.included).slice(0, 3).map((l: any) => l.url).join(" | ") : "";
-          const brand = getBrand(ev.modelName, ev.category);
-          const dateAnalyse = ev.lastScraped ? new Date(ev.lastScraped).toLocaleDateString("fr-CA") : todayStr;
+    const todayStr = new Date().toLocaleDateString("fr-CA");
 
-          return {
-            "Date analyse": dateAnalyse,
-            "Marque": brand,
-            "Modèle": ev.modelName,
-            "Catégorie": ev.category,
-            "Configuration": ev.configuration || "Intel Core i5, 16 Go, 256 Go SSD",
-            "Condition": ev.condition || "Très bon",
-            "Nombre comparables": ev.comparablesCount || 0,
-            "Prix minimum": minPrice ? `${minPrice}` : "0",
-            "Prix médian": ev.medianPrice ? `${ev.medianPrice}` : "0",
-            "Prix moyen": avgPrice ? `${avgPrice}` : "0",
-            "Prix maximum": maxPrice ? `${maxPrice}` : "0",
-            "Valeur recommandée": ev.medianPrice ? `${ev.medianPrice}` : "0",
-            "Niveau confiance": ev.confidence || "Aucun",
-            "Source principale": ev.listings && ev.listings.length > 0 ? ev.listings[0].source : "eBay / Back Market",
-            "URLs": urlsStr,
-            "Commentaires": ev.commentaires || ""
-          };
-        });
+    // 1. Inventaire Global (100% de tous les modèles évalués)
+    const allModelsData = evaluations.map(ev => {
+      const prices = ev.listings ? ev.listings.filter((l: any) => l.included).map((l: any) => l.price) : [];
+      const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+      const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+      const avgPrice = prices.length > 0 ? Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length) : 0;
+      const urlsStr = ev.listings ? ev.listings.filter((l: any) => l.included).slice(0, 5).map((l: any) => l.url).join(" | ") : "";
+      const brand = getBrand(ev.modelName, ev.category);
+      const dateAnalyse = ev.lastScraped ? new Date(ev.lastScraped).toLocaleDateString("fr-CA") : todayStr;
 
-      // Trier
-      newRows.sort((a, b) => {
-        const brandCompare = String(a["Marque"] || "").localeCompare(String(b["Marque"] || ""));
-        if (brandCompare !== 0) return brandCompare;
-        return String(a["Modèle"] || "").localeCompare(String(b["Modèle"] || ""));
+      return {
+        "Date analyse": dateAnalyse,
+        "Marque": brand,
+        "Modèle": ev.modelName,
+        "Catégorie": ev.category,
+        "Configuration": ev.configuration || "Intel Core i5, 16 Go, 256 Go SSD",
+        "Condition": ev.condition || "Très bon",
+        "Nombre comparables": ev.comparablesCount || (ev.listings ? ev.listings.length : 0),
+        "Prix minimum (CAD)": minPrice || 0,
+        "Prix médian (CAD)": ev.medianPrice || 0,
+        "Prix moyen (CAD)": avgPrice || 0,
+        "Prix maximum (CAD)": maxPrice || 0,
+        "Valeur recommandée (CAD)": ev.medianPrice || 0,
+        "Niveau confiance": ev.confidence || "Moyen",
+        "Source principale": ev.listings && ev.listings.length > 0 ? ev.listings[0].source : "eBay / Back Market",
+        "URLs principales": urlsStr,
+        "Commentaires": ev.commentaires || ""
+      };
+    }).sort((a, b) => {
+      const catCompare = a["Catégorie"].localeCompare(b["Catégorie"]);
+      if (catCompare !== 0) return catCompare;
+      return a["Modèle"].localeCompare(b["Modèle"]);
+    });
+
+    // Filtres par famille de matériel
+    const filterByKeywords = (keywords: string[]) => {
+      return allModelsData.filter(m => {
+        const cLower = m["Catégorie"].toLowerCase();
+        return keywords.some(k => cLower.includes(k));
       });
-      return newRows;
     };
 
-    const laptopsData = buildModelSheetRows(["Portables Lenovo", "Portables Dell", "Portables Dell XPS", "Portables HP", "Apple"]);
-    const desktopsData = buildModelSheetRows(["Desktop Lenovo", "Desktop Dell", "Desktop HP"]);
-    const iphoneData = buildModelSheetRows(["iPhones"]);
-    
+    const laptopsData = filterByKeywords(["portable", "laptop", "macbook"]);
+    const desktopsData = filterByKeywords(["desktop", "bureau", "mini pc", "thinkcentre", "optiplex", "desk"]);
+    const iphoneData = filterByKeywords(["iphone", "mobile", "smartphone"]);
+    const otherData = allModelsData.filter(m => 
+      !laptopsData.includes(m) && !desktopsData.includes(m) && !iphoneData.includes(m)
+    );
+
+    // 2. Comparables Détaillés (100% exhaustif, SANS tronquage ni omission)
+    const allComparablesRows: any[] = [];
+    evaluations.forEach(ev => {
+      if (ev.listings && Array.isArray(ev.listings)) {
+        ev.listings.forEach((l: any) => {
+          allComparablesRows.push({
+            "Modèle": ev.modelName,
+            "Catégorie": ev.category,
+            "Source": l.source,
+            "Titre de l'annonce": l.title,
+            "Prix final (CAD)": l.price,
+            "Prix d'origine (CAD)": l.originalPrice || l.price,
+            "Rabais ($)": l.discountAmount || 0,
+            "Rabais (%)": l.discountPercent ? `${l.discountPercent}%` : "0%",
+            "Devise source": l.currency || "CAD",
+            "Taux de change": l.exchangeRate || 1.0,
+            "Type de vente": l.saleType || "Achat immédiat",
+            "Date relevée": l.date || ev.lastScraped || todayStr,
+            "Inclus (Calcul Médiane)": l.included ? "Oui" : "Non",
+            "Anomalie (Outlier)": l.isOutlier ? "Oui" : "Non",
+            "Spécifications": l.specs ? (typeof l.specs === "object" ? Object.values(l.specs).filter(Boolean).join(", ") : String(l.specs)) : "",
+            "URL de l'offre": l.url
+          });
+        });
+      }
+    });
+
+    // 3. Historique complet des Prix par modèle
+    const priceHistoryRows: any[] = [];
+    evaluations.forEach(ev => {
+      if (ev.historicalPrices && Array.isArray(ev.historicalPrices)) {
+        ev.historicalPrices.forEach((hp: any) => {
+          priceHistoryRows.push({
+            "Date": hp.date,
+            "Catégorie": ev.category,
+            "Modèle": ev.modelName,
+            "Prix Médian (CAD)": hp.price,
+            "Niveau Confiance": hp.confidence || "Moyen"
+          });
+        });
+      }
+    });
+    priceHistoryRows.sort((a, b) => new Date(a["Date"]).getTime() - new Date(b["Date"]).getTime());
+
+    // 4. Journal d'Audit global
     const historicalLog = db.historicalLog || [];
     const historicalRows = historicalLog.map((log: any) => ({
       "Date / Heure": new Date(log.date).toLocaleString("fr-CA"),
       "Modèle informatique": log.model,
       "Type d'Action": log.action,
-      "Ancien Prix Médian (CAD)": `${log.previousPrice}`,
-      "Nouveau Prix Médian (CAD)": `${log.currentPrice}`,
-      "Variation constatée (CAD)": `${log.currentPrice - log.previousPrice}`,
+      "Ancien Prix Médian (CAD)": log.previousPrice,
+      "Nouveau Prix Médian (CAD)": log.currentPrice,
+      "Variation constatée (CAD)": log.currentPrice - log.previousPrice,
       "Opérateur d'Étude": log.operator
     }));
 
+    // 5. Écarts Marché
     const varianceRows = evaluations.map(ev => {
       const prevPrice = ev.historicalPrices && ev.historicalPrices.length > 0 ? ev.historicalPrices[ev.historicalPrices.length - 1].price : ev.medianPrice;
       const diff = ev.medianPrice - prevPrice;
@@ -1590,21 +1895,73 @@ del "%~f0"
       return {
         "Modèle d'équipement": ev.modelName,
         "Catégorie": ev.category,
-        "Prix Médian Précédent (CAD)": `${prevPrice}`,
-        "Prix Actuel Observé (CAD)": `${ev.medianPrice}`,
-        "Écart absolu (CAD)": `${diff}`,
+        "Prix Médian Précédent (CAD)": prevPrice,
+        "Prix Actuel Observé (CAD)": ev.medianPrice,
+        "Écart absolu (CAD)": diff,
         "Écart relatif (%)": `${pct} %`,
         "Tendance du Marché": trend
       };
     });
 
+    // 6. Modèles Personnalisés
+    const customModels = db.customModels || [];
+    const customModelsRows = customModels.map((cm: any) => ({
+      "Modèle": cm.modelName,
+      "Catégorie": cm.category,
+      "Date d'ajout": cm.addedAt || todayStr,
+      "Configuration": cm.configuration || ""
+    }));
+
+    // 7. Lots GCSurplus (si présents)
+    const gcsurplusLots = db.gcsurplusLots || [];
+    const gcsurplusRows = gcsurplusLots.map((lot: any) => ({
+      "Numéro de lot": lot.lotNumber,
+      "Titre": lot.title,
+      "Date de clôture": lot.closingDate,
+      "Mise actuelle (CAD)": lot.currentBid,
+      "Quantité": lot.quantity,
+      "Prix unitaire (CAD)": lot.unitPrice,
+      "Statut": lot.status,
+      "Emplacement": lot.location,
+      "URL": lot.url,
+      "Commentaires": lot.comments
+    }));
+
+    // 8. Métadonnées Système
+    const metadataRows = [
+      { "Propriété": "Date d'exportation", "Valeur": new Date().toISOString() },
+      { "Propriété": "Date lisible", "Valeur": new Date().toLocaleString("fr-CA") },
+      { "Propriété": "Application", "Valeur": "Évaluateur de Prix Insertech - Version Autonome" },
+      { "Propriété": "Format de sauvegarde", "Valeur": "Excel Exhaustif (.xlsx)" },
+      { "Propriété": "Total des modèles évalués", "Valeur": evaluations.length },
+      { "Propriété": "Total des annonces comparables brutes", "Valeur": allComparablesRows.length },
+      { "Propriété": "Total des relevés d'historique de prix", "Valeur": priceHistoryRows.length },
+      { "Propriété": "Total des entrées de journal d'audit", "Valeur": historicalRows.length },
+      { "Propriété": "Total des modèles sur mesure", "Valeur": customModelsRows.length },
+      { "Propriété": "Empreinte d'intégrité (Hash)", "Valeur": currentHash }
+    ];
+
     const wb = XLSX.utils.book_new();
+
+    // Onglet universel d'inventaire complet
+    if (allModelsData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allModelsData), "Inventaire Global");
     
+    // Onglets thématiques pour navigation humaine
     if (laptopsData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(laptopsData), "Portables");
     if (desktopsData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(desktopsData), "Bureau");
     if (iphoneData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(iphoneData), "iPhones");
-    if (historicalRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historicalRows), "Historique global");
+    if (otherData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(otherData), "Autres Catégories");
+
+    // Données exhaustives
+    if (allComparablesRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allComparablesRows), "Comparables Détaillés");
+    if (priceHistoryRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(priceHistoryRows), "Historique des Prix");
+    if (historicalRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historicalRows), "Journal d'Audit");
     if (varianceRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(varianceRows), "Écarts Marché");
+    if (customModelsRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(customModelsRows), "Modèles Personnalisés");
+    if (gcsurplusRows.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gcsurplusRows), "Lots GCSurplus");
+
+    // Métadonnées
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metadataRows), "Métadonnées");
 
     XLSX.writeFile(wb, excelPath);
     cachedStateHash = currentHash;
@@ -1614,7 +1971,9 @@ del "%~f0"
       fileName: excelName,
       localMasterPath: excelPath,
       downloadUrl: `/api/download-excel`,
-      count: evaluations.length
+      count: evaluations.length,
+      comparablesCount: allComparablesRows.length,
+      historyCount: priceHistoryRows.length
     };
   }
 
@@ -1649,6 +2008,60 @@ del "%~f0"
       if (!res.headersSent) {
         res.status(500).send("Erreur serveur lors du téléchargement.");
       }
+    }
+  });
+
+  // Route pour télécharger un gabarit/modèle vierge d'importation Excel
+  app.get("/api/download-template", (req, res) => {
+    try {
+      const templateWb = XLSX.utils.book_new();
+      const sampleRows = [
+        {
+          "Date analyse": new Date().toLocaleDateString("fr-CA"),
+          "Marque": "Lenovo",
+          "Modèle": "ThinkPad T14 Gen 2",
+          "Catégorie": "Portables Lenovo",
+          "Configuration": "Intel Core i5-1135G7, 16 Go RAM, 512 Go SSD",
+          "Condition": "Très bon",
+          "Nombre comparables": 15,
+          "Prix minimum (CAD)": 380,
+          "Prix médian (CAD)": 450,
+          "Prix moyen (CAD)": 455,
+          "Prix maximum (CAD)": 520,
+          "Valeur recommandée (CAD)": 450,
+          "Niveau confiance": "Élevé",
+          "Source principale": "eBay / Back Market",
+          "URLs principales": "https://www.ebay.ca | https://www.backmarket.ca",
+          "Commentaires": "Exemple de ligne à personnaliser"
+        },
+        {
+          "Date analyse": new Date().toLocaleDateString("fr-CA"),
+          "Marque": "Dell",
+          "Modèle": "OptiPlex 7070 Micro",
+          "Catégorie": "Desktop Dell",
+          "Configuration": "Intel Core i7-9700T, 16 Go RAM, 256 Go SSD",
+          "Condition": "Très bon",
+          "Nombre comparables": 12,
+          "Prix minimum (CAD)": 280,
+          "Prix médian (CAD)": 340,
+          "Prix moyen (CAD)": 335,
+          "Prix maximum (CAD)": 390,
+          "Valeur recommandée (CAD)": 340,
+          "Niveau confiance": "Élevé",
+          "Source principale": "eBay",
+          "URLs principales": "https://www.ebay.ca",
+          "Commentaires": "Exemple de poste bureautique"
+        }
+      ];
+      XLSX.utils.book_append_sheet(templateWb, XLSX.utils.json_to_sheet(sampleRows), "Inventaire Global");
+      
+      const buffer = XLSX.write(templateWb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", 'attachment; filename="Import_Manuel_Gabarit.xlsx"');
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buffer);
+    } catch (err: any) {
+      console.error("Error generating import template:", err);
+      res.status(500).send("Erreur lors de la génération du gabarit.");
     }
   });
 

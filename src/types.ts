@@ -69,7 +69,7 @@ export interface ModelEvaluation {
   configuration?: string;
   condition?: string;
   commentaires?: string;
-  historicalPrices?: { date: string; price: number }[];
+  historicalPrices?: { date: string; price: number; confidence?: string }[];
 }
 
 // === Sélecteurs CSS pour le scraping ===

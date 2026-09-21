@@ -97,12 +97,22 @@ Démarre le serveur Express + Vite HMR sur **`http://localhost:3000`**.
 
 ---
 
-## 📦 Build de Production
+## 📦 Build & Déploiement
 
+### 1. Build standard (Frontend + Backend)
 ```bash
-npm run build   # Compile frontend (Vite → dist/) + backend (esbuild → dist/server.js)
-npm start       # Lance la version compilée
+npm run build   # Compile le frontend (Vite → dist/) + le backend (esbuild → dist/server.js)
+npm start       # Lance la version compilée sur http://127.0.0.1:3000
 ```
+
+### 2. Packaging autonome portable (Zéro-Dépendance)
+```bash
+npm run build:executable   # Génère le dossier 'evaluateur-insertech-portable' et l'archive ZIP autonome
+```
+
+### 3. Lanceurs rapides Windows
+- **`Lancer-Insertech.bat`** (ou `Lancer-Insertech-GUI.vbs`) : Lanceur silencieux sans console noire. Intègre une **attente active HTTP** sur `/api/version` qui synchronise l'ouverture de la fenêtre Edge uniquement lorsque le serveur Node.js et la base SQLite sont 100 % opérationnels (élimine tout risque de `ERR_CONNECTION_REFUSED`).
+- **`start-prod.bat`** : Lanceur batch de production avec redémarrage automatique en cas d'arrêt et ouverture de navigateur synchronisée (`AUTO_OPEN=true`).
 
 ---
 

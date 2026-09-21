@@ -33,7 +33,27 @@ If Err.Number <> 0 Then
          "Veuillez copier 'node.exe' dans ce dossier portable ou installer Node.js sur le poste.", 16, "Évaluateur Insertech - Erreur Démarrage"
   WScript.Quit 1
 End If
-WScript.Sleep 800
+
+' Attente active que le serveur soit prêt à répondre avant d'ouvrir le navigateur
+Dim http, ready, waitCount
+ready = False
+waitCount = 0
+
+Do While Not ready And waitCount < 40
+  WScript.Sleep 500
+  waitCount = waitCount + 1
+  On Error Resume Next
+  Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+  http.Open "GET", "http://127.0.0.1:3000/api/version", False
+  http.setTimeouts 500, 500, 500, 500
+  http.Send
+  If Err.Number = 0 Then
+    If http.Status = 200 Then
+      ready = True
+    End If
+  End If
+  On Error GoTo 0
+Loop
 
 Dim edge32, edge64, edgePath
 edge32 = WshShell.ExpandEnvironmentStrings("%ProgramFiles(x86)%") & "\Microsoft\Edge\Application\msedge.exe"

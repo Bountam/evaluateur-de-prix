@@ -6,9 +6,21 @@ Bienvenue dans le guide d'utilisation de l'**Évaluateur de Prix Insertech**. Ce
 
 ## 🚀 1. Lancement de l'Application
 
-Ouvrez votre navigateur et accédez à l'adresse fournie par votre administrateur :
+L'application peut être démarrée selon votre mode de travail :
+
+### A. Version Portable Autonome (Recommandée)
+Double-cliquez simplement sur :
+- **`Lancer-Insertech.bat`** (ou `Lancer-Insertech-GUI.vbs`)
+- Une synchronisation active en arrière-plan attend que le serveur Node.js et la base SQLite soient pleinement prêts (HTTP 200) avant d'ouvrir la fenêtre dédiée (Edge en mode application).
+
+### B. Mode Production Standard
+- Double-cliquez sur **`start-prod.bat`**
+- Le serveur se compile si nécessaire, démarre et ouvre automatiquement le navigateur dès que le port 3000 est prêt.
+
+### C. Accès Manuel par Navigateur
+Ouvrez votre navigateur web et accédez à l'adresse :
 ```
-http://localhost:3000
+http://127.0.0.1:3000  (ou http://localhost:3000)
 ```
 
 L'application bascule automatiquement entre le thème **Clair** et **Sombre** selon vos préférences — vous pouvez aussi le changer manuellement via le bouton ☀️/🌙 en haut à droite.
@@ -173,10 +185,11 @@ Utile pour identifier rapidement les modèles dont la valeur marchande évolue s
 ---
 
 ## ❓ Dépannage rapide
-
+ 
 | Problème | Solution |
 |---|---|
+| « 127.0.0.1 a refusé de se connecter » (ERR_CONNECTION_REFUSED) | Le serveur local est en cours d'initialisation en arrière-plan. Cliquez simplement sur le bouton **« Actualiser »** (ou F5) ou vérifiez que l'adresse contient bien le port : `http://127.0.0.1:3000`. Les nouveaux lanceurs synchronisés évitent automatiquement cette situation. |
 | Une source affiche « Erreur » | Normal si le site est temporairement indisponible — le Tier 3 (cache) prend le relais |
 | Prix médian à 0 $ | Aucun comparable valide trouvé — relancer la collecte ou vérifier les filtres |
 | Modèle introuvable dans la liste | Utilisez **+ Ajouter un modèle** pour l'enregistrer manuellement |
-| L'application ne répond pas | Vérifiez que le serveur backend est bien démarré sur `http://localhost:3000` |
+| L'application ne répond pas | Vérifiez que le serveur backend est bien démarré sur `http://127.0.0.1:3000` ou relancez `Lancer-Insertech.bat` |

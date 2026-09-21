@@ -35,5 +35,6 @@ evaluateur-insertech-portable/chromium/
 
 evaluateur-insertech-portable/
 data/*.sqlite
+data/backups/
 logs/
 *.bak

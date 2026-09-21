@@ -725,16 +725,16 @@ async function startServer() {
   app.get("/api/version", (req, res) => {
     res.json({
       success: true,
-      version: "1.4.0",
+      version: "1.4.1",
       channel: "Stable",
-      releaseDate: "2026-07-29",
+      releaseDate: "2026-09-21",
       name: "Évaluateur de Prix Insertech"
     });
   });
 
   // Check for application updates via GitHub Releases API or Git Tags Fallback
   app.get("/api/check-update", async (req, res) => {
-    const currentVersion = "1.4.0";
+    const currentVersion = "1.4.1";
     const githubRepo = process.env.GITHUB_REPO || "Bountam/evaluateur-de-prix";
     
     try {

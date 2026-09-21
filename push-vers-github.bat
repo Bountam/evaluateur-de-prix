@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 > nul
 title Envoi vers GitHub - Évaluateur de Prix Insertech
 
@@ -10,12 +10,12 @@ echo Cette commande va synchroniser vos modifications locales vers GitHub.
 echo Une fenetre de connexion GitHub va s'ouvrir si vous n'etes pas encore connecte.
 echo.
 
-echo Branche locale : master (v1.4.0 + Export Excel complet + Sans timeout)
+echo Branche locale : master (v1.4.1 + Synchronisation demarrage + Export Excel)
 echo Depot distant  : https://github.com/Bountam/evaluateur-de-prix.git
 echo.
 
 echo Options d'envoi :
-echo  1. Mettre a jour la branche principale 'main' (Recommande - remplace l'ancienne version v1.3.0)
+echo  1. Mettre a jour la branche principale 'main' (Recommande)
 echo  2. Pousser sur une nouvelle branche 'master'
 echo.
 set /p CHOICE="Entrez votre choix [1 ou 2] (Defaut: 1) : "

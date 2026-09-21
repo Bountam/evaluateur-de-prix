@@ -12,6 +12,7 @@ if exist "%~dp0node.exe" set NODE_BIN="%~dp0node.exe"
 set NODE_ENV=production
 set HOST=127.0.0.1
 set PORT=3000
+set AUTO_OPEN=true
 
 echo [INFO] Environnement: %NODE_ENV%
 echo [INFO] Port: %PORT%
@@ -22,8 +23,6 @@ if not exist "%~dp0dist\server.js" (
     echo [INFO] Fichier dist\server.js manquant. Generation du build...
     %NODE_BIN% "%~dp0node_modules\esbuild\bin\esbuild" server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js
 )
-
-start "" "http://127.0.0.1:3000"
 
 :restart
 echo [INFO] Demarrage du serveur Insertech...

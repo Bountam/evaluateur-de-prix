@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { MASTER_LIST_MODELS } from "../modelsData";
+import { MASTER_LIST_MODELS, normalizeCategory } from "../modelsData";
 import { Search, Monitor, Laptop, Smartphone, ChevronRight, PlusCircle, RefreshCw } from "lucide-react";
 import { ModelEvaluation } from "../types";
 
@@ -38,17 +38,17 @@ export default function Sidebar({
     if (category.toLowerCase().includes("portable") || category.toLowerCase().includes("apple")) {
       return <Laptop className="w-4 h-4 text-slate-500" id="icon-laptop" />;
     }
-    if (category.toLowerCase().includes("desktop")) {
+    if (category.toLowerCase().includes("desktop") || category.toLowerCase().includes("bureau") || category.toLowerCase().includes("tour")) {
       return <Monitor className="w-4 h-4 text-slate-500" id="icon-monitor" />;
     }
     return <Smartphone className="w-4 h-4 text-slate-500" id="icon-smartphone" />;
   };
 
-  // Merge MASTER_LIST_MODELS with dynamically loaded customModels
+  // Merge MASTER_LIST_MODELS with dynamically loaded customModels (including custom categories)
   const mergedCategories = useMemo(() => {
-    return MASTER_LIST_MODELS.map(cat => {
+    const standardCategories = MASTER_LIST_MODELS.map(cat => {
       const customsForCat = (customModels || [])
-        .filter(cm => cm.category === cat.categoryName)
+        .filter(cm => normalizeCategory(cm.category) === cat.categoryName)
         .map(cm => cm.modelName);
       const combined = Array.from(new Set([...cat.models, ...customsForCat]));
       return {
@@ -56,6 +56,28 @@ export default function Sidebar({
         models: combined
       };
     });
+
+    const standardCatNames = new Set(MASTER_LIST_MODELS.map(c => c.categoryName));
+    const extraCategoriesMap: Record<string, string[]> = {};
+
+    (customModels || []).forEach(cm => {
+      const normCat = normalizeCategory(cm.category);
+      if (!standardCatNames.has(normCat)) {
+        if (!extraCategoriesMap[normCat]) {
+          extraCategoriesMap[normCat] = [];
+        }
+        if (!extraCategoriesMap[normCat].includes(cm.modelName)) {
+          extraCategoriesMap[normCat].push(cm.modelName);
+        }
+      }
+    });
+
+    const extraCategories = Object.entries(extraCategoriesMap).map(([categoryName, models]) => ({
+      categoryName,
+      models
+    }));
+
+    return [...standardCategories, ...extraCategories];
   }, [customModels]);
 
   // Filter master list based on search and selected categories
@@ -68,10 +90,24 @@ export default function Sidebar({
       models: matchedModels
     };
   }).filter(cat => {
-    if (filterCategories && !filterCategories.includes(cat.categoryName)) {
-      return false;
-    }
-    return cat.models.length > 0;
+    if (cat.models.length === 0) return false;
+    if (!filterCategories || filterCategories.length === 0) return true;
+    if (filterCategories.includes(cat.categoryName)) return true;
+
+    // Custom category matching tab context
+    const catLower = cat.categoryName.toLowerCase();
+    const isDesktop = catLower.includes("desktop") || catLower.includes("bureau") || catLower.includes("tour");
+    const isIphone = catLower.includes("iphone") || catLower.includes("smartphone") || catLower.includes("téléphone");
+    
+    const filterHasDesktop = filterCategories.some(f => f.toLowerCase().includes("desktop"));
+    const filterHasIphone = filterCategories.some(f => f.toLowerCase().includes("iphone"));
+    const filterHasPortables = filterCategories.some(f => f.toLowerCase().includes("portable") || f.toLowerCase().includes("apple"));
+
+    if (isDesktop && filterHasDesktop) return true;
+    if (isIphone && filterHasIphone) return true;
+    if (!isDesktop && !isIphone && filterHasPortables) return true;
+
+    return false;
   });
 
   return (

@@ -274,13 +274,28 @@ export async function orchestrateScraping(
 
   let completedCount = 0;
   const settled = await runWithConcurrencyLimit(ALL_SCRAPERS, CONCURRENCY_LIMIT, async s => {
-    const res = await s.scrape(searchModel, log);
-    completedCount++;
-    if (onSourceComplete) {
-      try {
-        onSourceComplete(res, completedCount, ALL_SCRAPERS.length);
-      } catch {
-        // Ignorer
+    let res: ScraperResult;
+    try {
+      res = await s.scrape(searchModel, log);
+    } catch (err) {
+      log(`⚠️ [${s.sourceKey || s.name}] Erreur de collecte : ${err instanceof Error ? err.message : String(err)}`);
+      res = {
+        listings: [],
+        source: s.name,
+        sourceKey: s.sourceKey,
+        method: 'direct',
+        timestamp: new Date().toISOString(),
+        success: false,
+        error: err instanceof Error ? err.message : String(err)
+      };
+    } finally {
+      completedCount++;
+      if (onSourceComplete) {
+        try {
+          onSourceComplete(res!, completedCount, ALL_SCRAPERS.length);
+        } catch {
+          // Ignorer
+        }
       }
     }
     return res;

@@ -124,8 +124,16 @@ async function getSharedContext(): Promise<any> {
     launchOptions.executablePath = embeddedExecutable;
   }
 
-  sharedContextPromise = chromium.launchPersistentContext(PROFILE_DIR, launchOptions);
-  return sharedContextPromise;
+  launchOptions.timeout = 25000;
+
+  try {
+    sharedContextPromise = chromium.launchPersistentContext(PROFILE_DIR, launchOptions);
+    const ctx = await sharedContextPromise;
+    return ctx;
+  } catch (err) {
+    sharedContextPromise = null;
+    throw err;
+  }
 }
 
 /**

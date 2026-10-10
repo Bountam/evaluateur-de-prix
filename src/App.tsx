@@ -11,7 +11,7 @@ import ConcurrencyModal from "./components/ConcurrencyModal";
 import UpdateModal from "./components/UpdateModal";
 import SessionInitModal from "./components/SessionInitModal";
 import UserSwitchModal from "./components/UserSwitchModal";
-import { MASTER_LIST_MODELS } from "./modelsData";
+import { MASTER_LIST_MODELS, normalizeCategory } from "./modelsData";
 import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, GcsurplusLot, DataSource, HistoricalLogEntry } from "./types";
 import { 
   FileSpreadsheet, 
@@ -136,10 +136,22 @@ export default function App() {
     const map: Record<string, string[]> = {};
     MASTER_LIST_MODELS.forEach(cat => {
       const customsForCat = (customModels || [])
-        .filter(cm => cm.category === cat.categoryName)
+        .filter(cm => normalizeCategory(cm.category) === cat.categoryName)
         .map(cm => cm.modelName);
       map[cat.categoryName] = Array.from(new Set([...cat.models, ...customsForCat]));
     });
+
+    const standardCatNames = new Set(MASTER_LIST_MODELS.map(c => c.categoryName));
+    (customModels || []).forEach(cm => {
+      const normCat = normalizeCategory(cm.category);
+      if (!standardCatNames.has(normCat)) {
+        if (!map[normCat]) map[normCat] = [];
+        if (!map[normCat].includes(cm.modelName)) {
+          map[normCat].push(cm.modelName);
+        }
+      }
+    });
+
     return map;
   }, [customModels]);
 
@@ -298,11 +310,19 @@ export default function App() {
         activePollIntervalsRef.current.delete(model);
       }
 
-      // Suivi continu sans délai d'attente artificiel (attente complète des données)
+      // Suivi continu sans délai d'attente artificiel (attente complète des données même sur machine lente)
+      let consecutiveErrors = 0;
       const pollInterval = setInterval(async () => {
         try {
           const statusRes = await fetch(`/api/scrape/status?model=${encodeURIComponent(model)}`);
-          if (!statusRes.ok) return;
+          if (!statusRes.ok) {
+            consecutiveErrors++;
+            if (consecutiveErrors > 60) {
+              console.warn(`[Polling] HTTP ${statusRes.status} pour ${model}`);
+            }
+            return;
+          }
+          consecutiveErrors = 0;
           const statusData = await statusRes.json();
           if (statusData.success) {
             setScrapingModels(prev => {
@@ -354,10 +374,19 @@ export default function App() {
             } else if (statusData.status === "failed") {
               clearInterval(pollInterval);
               activePollIntervalsRef.current.delete(model);
+              setScrapingModels(prev => ({
+                ...prev,
+                [model]: {
+                  isScraping: false,
+                  progress: 0,
+                  logs: [...(prev[model]?.logs || []), `❌ Échec : ${statusData.error || "La tâche d'extraction a échoué."}`]
+                }
+              }));
               setErrorMsg(statusData.error || "La tâche d'extraction a échoué.");
             }
           }
         } catch (pollErr: any) {
+          consecutiveErrors++;
           console.error("Polling error:", pollErr);
         }
       }, 1000);
@@ -807,16 +836,17 @@ export default function App() {
           if (returnedEvaluations) {
             setEvaluations(returnedEvaluations);
           }
-          if (cat.includes("Desktop") || cat.includes("Tours")) {
+          const normCat = normalizeCategory(cat);
+          const catLower = normCat.toLowerCase();
+          if (catLower.includes("desktop") || catLower.includes("tour") || catLower.includes("bureau")) {
             setActiveTab("desktops");
-          } else if (cat.includes("iPhone")) {
+          } else if (catLower.includes("iphone") || catLower.includes("téléphone") || catLower.includes("smartphone")) {
             setActiveTab("iphone");
           } else {
             setActiveTab("portables");
           }
-          handleSelectModel(model, cat);
-          await fetchState();
-          handleScrapeModel(model, false, cat);
+          handleSelectModel(model, normCat);
+          handleScrapeModel(model, false, normCat);
         }}
       />
 

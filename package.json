@@ -14,7 +14,8 @@
     "start": "node dist/server.js",
     "test": "vitest run --fileParallelism=false",
     "clean": "rm -rf dist db.json",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "release:upload": "node scripts/upload-release-asset.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

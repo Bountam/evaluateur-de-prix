@@ -64,8 +64,11 @@ function getEmbeddedChromiumPath(): string | undefined {
   return undefined;
 }
 
+import { execSync } from 'node:child_process';
+
 let sharedBrowser: any = null;
 let sharedBrowserPromise: Promise<any> | null = null;
+let browserPid: number | null = null;
 
 export async function getSharedBrowser(): Promise<any> {
   if (sharedBrowser && sharedBrowser.isConnected()) {
@@ -106,13 +109,17 @@ export async function getSharedBrowser(): Promise<any> {
   sharedBrowserPromise = (async () => {
     try {
       const browser = await chromium.launch(launchOptions);
+      const anyBrowser = browser as any;
+      browserPid = typeof anyBrowser.process === "function" ? (anyBrowser.process()?.pid ?? null) : null;
       browser.on('disconnected', () => {
         sharedBrowser = null;
+        browserPid = null;
       });
       sharedBrowser = browser;
       return browser;
     } catch (err) {
       sharedBrowser = null;
+      browserPid = null;
       throw err;
     } finally {
       sharedBrowserPromise = null;
@@ -123,6 +130,7 @@ export async function getSharedBrowser(): Promise<any> {
 }
 
 export async function closeSharedBrowser(): Promise<void> {
+  const currentPid = browserPid;
   if (sharedBrowser) {
     try {
       await sharedBrowser.close();
@@ -130,6 +138,16 @@ export async function closeSharedBrowser(): Promise<void> {
       // Ignorer
     }
     sharedBrowser = null;
+  }
+
+  // Sur Windows, si l'arborescence du processus Playwright est encore active, la fermer de manière ciblée
+  if (currentPid && process.platform === 'win32') {
+    try {
+      execSync(`taskkill /pid ${currentPid} /t /f`, { stdio: 'ignore' });
+    } catch {
+      // Déjà terminé normalement
+    }
+    browserPid = null;
   }
 }
 

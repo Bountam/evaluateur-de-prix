@@ -133,8 +133,9 @@ flowchart TD
     M4["Jalon 4 : Audit & Révision des 16 scrapers (Lot 3 : Canada Computers, Dell, GCSurplus, SEAO, Insertech)"]
     M5["Jalon 5 : Modularisation de server.ts et ModelDetail.tsx"]
     M6["Jalon 6 : Migration ExcelJS et résolution finale des vulnérabilités npm"]
+    M7["Jalon 7 (Terminé) : Packaging exécutable portable, arrêt gracieux & validation E2E"]
 
-    M1 --> M2 --> M3 --> M4 --> M5 --> M6
+    M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7
 ```
 
 ### Critères d'acceptation pour chaque jalon :
@@ -167,3 +168,10 @@ flowchart TD
   - Migration intégrale de la suite Excel vers **`exceljs`** (`server/services/excel.service.ts`, `server/routes/excel.routes.ts`, `scrapers/insertech-internal.ts`, `scrapers/insertech-archives.ts`).
   - Export et import Excel 100% fidèles au modèle réglementaire d'Insertech avec styles professionnels (en-tête sombre `#2D3436`, polices blanches, largeurs adaptées).
   - 75 tests unitaires et d'intégration Vitest au vert sur 7 suites de tests (`tests/excel-service.test.ts`), validation stricte `tsc --noEmit` et compilation de production `npm run build` réussies.
+- [x] **Jalon 7 (Complet) :**
+  - **Packaging Exécutable Portable Windows** (`scripts/build-executable.ts`) : Génération de l'archive autonome distribuable (`evaluateur-insertech-portable.zip`, ~261 Mo) incluant le runtime Node.js, Chromium Playwright, les assets web dist/ et des lanceurs Windows (`.bat`, `.vbs` sans console noire) et macOS/Linux.
+  - **Élimination des comportements destructifs** : Remplacement du `taskkill /f /im node.exe` aveugle par un ciblage strict du PID (`.server.pid`), et détection dynamique du port d'écoute (`.server.port`).
+  - **Arrêt Gracieux & Nettoyage Chromium** : Service de cycle de vie (`server/services/lifecycle.service.ts`) capturant `SIGINT`, `SIGTERM` et `SIGHUP`, fermant proprement le serveur HTTP, exécutant le checkpoint WAL SQLite et tuant de manière ciblée toute arborescence Chromium orpheline sur Windows.
+  - **Régulation PC Modestes** : Détection dynamique des cœurs CPU (`os.cpus().length <= 4`) pour adapter automatiquement la concurrence par défaut à 1 ou 2 flux simultanés sans saturer la machine d'atelier.
+  - **Validation Métier E2E** : Suite de tests d'intégration complète (`tests/e2e-business-lifecycle.test.ts` et `tests/portable-packaging.test.ts`), portant à **82 tests Vitest au vert** sur 9 fichiers de test, avec contrôle TypeScript `tsc --noEmit` et compilation de production `npm run build` réussis.
+

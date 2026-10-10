@@ -20,6 +20,8 @@ export const BACKUP_DIR = path.join(DATA_DIR, "backups");
 export const EXPORTS_DIR = path.join(PROJECT_ROOT, "exports");
 export const LOGS_DIR = path.join(PROJECT_ROOT, "logs");
 export const MASTER_FILE_NAME = "Export_Donnees_Brutes.xlsx";
+export const PID_FILE = path.join(PROJECT_ROOT, ".server.pid");
+export const PORT_FILE = path.join(PROJECT_ROOT, ".server.port");
 
 // S'assurer que les répertoires critiques existent
 [DATA_DIR, BACKUP_DIR, EXPORTS_DIR, LOGS_DIR].forEach(dir => {

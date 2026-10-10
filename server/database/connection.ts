@@ -68,3 +68,8 @@ function initDatabase(): DatabaseSync {
 }
 
 sqliteDb = initDatabase();
+
+export function resetDatabaseConnection(): DatabaseSync {
+  sqliteDb = initDatabase();
+  return sqliteDb;
+}

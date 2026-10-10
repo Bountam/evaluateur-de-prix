@@ -7,9 +7,26 @@ WshShell.CurrentDirectory = scriptDir
 WshShell.Environment("PROCESS")("NODE_ENV") = "production"
 WshShell.Environment("PROCESS")("HOST") = "127.0.0.1"
 
-On Error Resume Next
-WshShell.Run "taskkill /f /im node.exe", 0, True
-On Error GoTo 0
+' 1. Arrêter uniquement l'instance précédente de cette application si .server.pid existe
+pidFile = scriptDir & "\.server.pid"
+portFile = scriptDir & "\.server.port"
+
+If fso.FileExists(pidFile) Then
+  On Error Resume Next
+  Set tsOld = fso.OpenTextFile(pidFile, 1)
+  oldPid = Trim(tsOld.ReadAll)
+  tsOld.Close
+  If IsNumeric(oldPid) And Len(oldPid) > 0 Then
+    WshShell.Run "taskkill /f /pid " & oldPid & " /t", 0, True
+  End If
+  fso.DeleteFile pidFile, True
+  On Error GoTo 0
+End If
+If fso.FileExists(portFile) Then
+  On Error Resume Next
+  fso.DeleteFile portFile, True
+  On Error GoTo 0
+End If
 WScript.Sleep 500
 
 If fso.FileExists(scriptDir & "\chromium\chrome.exe") Then
@@ -34,17 +51,30 @@ If Err.Number <> 0 Then
   WScript.Quit 1
 End If
 
-' Attente active que le serveur soit prêt à répondre avant d'ouvrir le navigateur
-Dim http, ready, waitCount
+' Attente active que le serveur soit prêt à répondre et détection dynamique du port
+Dim http, ready, waitCount, targetPort
 ready = False
 waitCount = 0
+targetPort = "3000"
 
-Do While Not ready And waitCount < 40
+Do While Not ready And waitCount < 60
   WScript.Sleep 500
   waitCount = waitCount + 1
+
+  If fso.FileExists(portFile) Then
+    On Error Resume Next
+    Set tsPort = fso.OpenTextFile(portFile, 1)
+    readPort = Trim(tsPort.ReadAll)
+    tsPort.Close
+    If IsNumeric(readPort) And Len(readPort) > 0 Then
+      targetPort = readPort
+    End If
+    On Error GoTo 0
+  End If
+
   On Error Resume Next
   Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-  http.Open "GET", "http://127.0.0.1:3000/api/version", False
+  http.Open "GET", "http://127.0.0.1:" & targetPort & "/api/version", False
   http.setTimeouts 500, 500, 500, 500
   http.Send
   If Err.Number = 0 Then
@@ -66,7 +96,7 @@ ElseIf fso.FileExists(edge64) Then
 End If
 
 Dim targetUrl
-targetUrl = "http://127.0.0.1:3000"
+targetUrl = "http://127.0.0.1:" & targetPort
 
 If edgePath <> "" Then
   WshShell.Run """" & edgePath & """ --app=""" & targetUrl & """ --disable-http-cache --disk-cache-size=1 --user-data-dir=""" & WshShell.ExpandEnvironmentStrings("%TEMP%") & "\InsertechApp""", 1, True
@@ -74,6 +104,20 @@ Else
   WshShell.Run """" & targetUrl & """", 1, True
 End If
 
-On Error Resume Next
-WshShell.Run "taskkill /f /im node.exe", 0, True
-On Error GoTo 0
+' À la fermeture de la fenêtre du navigateur : arrêt gracieux ciblé du PID du serveur
+If fso.FileExists(pidFile) Then
+  On Error Resume Next
+  Set tsEnd = fso.OpenTextFile(pidFile, 1)
+  curPid = Trim(tsEnd.ReadAll)
+  tsEnd.Close
+  If IsNumeric(curPid) And Len(curPid) > 0 Then
+    WshShell.Run "taskkill /f /pid " & curPid & " /t", 0, True
+  End If
+  fso.DeleteFile pidFile, True
+  On Error GoTo 0
+End If
+If fso.FileExists(portFile) Then
+  On Error Resume Next
+  fso.DeleteFile portFile, True
+  On Error GoTo 0
+End If

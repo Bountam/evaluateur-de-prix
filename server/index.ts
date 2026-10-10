@@ -6,9 +6,10 @@ import { exec } from "child_process";
 import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
-import { PORT, HOST, EXPORTS_DIR, logger } from "./config/index.ts";
+import { PORT, HOST, EXPORTS_DIR, PID_FILE, PORT_FILE, logger } from "./config/index.ts";
 import { apiLimiter } from "./middlewares/rateLimiters.ts";
 import { errorHandler } from "./middlewares/errorHandler.ts";
+import { setupGracefulShutdown, getIsShuttingDown } from "./services/lifecycle.service.ts";
 import apiRouter from "./routes/index.ts";
 
 export async function createApp() {
@@ -18,6 +19,17 @@ export async function createApp() {
   app.use(compression());
 
   app.use(morgan("combined", { stream: { write: (message) => logger.info(message.trim()) } }));
+
+  // Rejeter les requêtes entrantes avec 503 si l'arrêt gracieux est enclenché
+  app.use((_req, res, next) => {
+    if (getIsShuttingDown()) {
+      res.setHeader("Connection", "close");
+      res.status(503).send("Serveur en cours d'arrêt.");
+      return;
+    }
+    next();
+  });
+
   app.use("/api/", apiLimiter);
 
   app.use(express.json({ limit: "20mb" }));
@@ -140,6 +152,17 @@ export function listenOnAvailablePort(app: express.Express, port: number, host =
         process.platform === "darwin" ? `open http://127.0.0.1:${port}` : `xdg-open http://127.0.0.1:${port}`;
       exec(openCmd, () => {});
     }
+
+    // Enregistrer le PID et le Port effectif pour le lanceur autonome et l'arrêt propre
+    try {
+      fs.writeFileSync(PID_FILE, process.pid.toString(), "utf-8");
+      fs.writeFileSync(PORT_FILE, port.toString(), "utf-8");
+    } catch (e: any) {
+      logger.warn(`[Lifecycle] Impossible d'écrire PID_FILE/PORT_FILE: ${e?.message || e}`);
+    }
+
+    // Configurer le gestionnaire d'arrêt gracieux
+    setupGracefulShutdown(server);
   });
 
   server.on("error", (err: any) => {

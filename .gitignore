@@ -12,6 +12,7 @@ coverage/
 # Caches des scrapers (régénérés automatiquement)
 scraper-cache/
 scraper-cache.json
+data/scraper-cache/
 
 # Profil navigateur Puppeteer/Playwright (régénéré automatiquement)
 data/puppeteer_profile/

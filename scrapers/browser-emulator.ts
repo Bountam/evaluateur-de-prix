@@ -64,47 +64,24 @@ function getEmbeddedChromiumPath(): string | undefined {
   return undefined;
 }
 
-let sharedContextPromise: Promise<any> | null = null;
+let sharedBrowser: any = null;
+let sharedBrowserPromise: Promise<any> | null = null;
 
-async function getSharedContext(): Promise<any> {
-  if (sharedContextPromise) {
-    try {
-      const ctx = await sharedContextPromise;
-      if (ctx.browser() && ctx.browser().isConnected()) {
-        return ctx;
-      }
-    } catch {
-      sharedContextPromise = null;
-    }
+export async function getSharedBrowser(): Promise<any> {
+  if (sharedBrowser && sharedBrowser.isConnected()) {
+    return sharedBrowser;
   }
 
-  try {
-    fs.mkdirSync(PROFILE_DIR, { recursive: true });
-  } catch {
-    // Ignorer si existe déjà
+  if (sharedBrowserPromise) {
+    return sharedBrowserPromise;
   }
 
   const embeddedExecutable = getEmbeddedChromiumPath();
 
   const launchOptions: any = {
     headless: true,
-    viewport: { width: 1440, height: 900 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    locale: 'fr-CA,fr;q=0.9,en-CA;q=0.8,en;q=0.7',
-    timezoneId: 'America/Toronto',
-    extraHTTPHeaders: {
-      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'accept-language': 'fr-CA,fr;q=0.9,en-CA;q=0.8,en;q=0.7',
-      'sec-ch-ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'sec-fetch-dest': 'document',
-      'sec-fetch-mode': 'navigate',
-      'sec-fetch-site': 'none',
-      'sec-fetch-user': '?1',
-      'upgrade-insecure-requests': '1',
-    },
     args: [
+      '--headless=new',
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-gpu',
@@ -117,22 +94,42 @@ async function getSharedContext(): Promise<any> {
       '--ignore-certificate-errors-spki-list',
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
+      '--blink-settings=imagesEnabled=false',
     ],
+    timeout: 25000,
   };
 
   if (embeddedExecutable) {
     launchOptions.executablePath = embeddedExecutable;
   }
 
-  launchOptions.timeout = 25000;
+  sharedBrowserPromise = (async () => {
+    try {
+      const browser = await chromium.launch(launchOptions);
+      browser.on('disconnected', () => {
+        sharedBrowser = null;
+      });
+      sharedBrowser = browser;
+      return browser;
+    } catch (err) {
+      sharedBrowser = null;
+      throw err;
+    } finally {
+      sharedBrowserPromise = null;
+    }
+  })();
 
-  try {
-    sharedContextPromise = chromium.launchPersistentContext(PROFILE_DIR, launchOptions);
-    const ctx = await sharedContextPromise;
-    return ctx;
-  } catch (err) {
-    sharedContextPromise = null;
-    throw err;
+  return sharedBrowserPromise;
+}
+
+export async function closeSharedBrowser(): Promise<void> {
+  if (sharedBrowser) {
+    try {
+      await sharedBrowser.close();
+    } catch {
+      // Ignorer
+    }
+    sharedBrowser = null;
   }
 }
 
@@ -141,41 +138,36 @@ async function getSharedContext(): Promise<any> {
  * exécute le JavaScript de la page et retourne le HTML complet compilé.
  */
 export async function scrapeHtmlStealth(url: string, waitForSelector?: string): Promise<string> {
-  const context = await getSharedContext();
+  const browser = await getSharedBrowser();
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    locale: 'fr-CA',
+    timezoneId: 'America/Toronto',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  });
+
   const page = await context.newPage();
 
   try {
-    // Intercepter et annuler le chargement des images, polices, vidéos et traqueurs (gain de 70% de vitesse)
-    await page.route('**/*', (route: any) => {
-      const type = route.request().resourceType();
-      const reqUrl = route.request().url().toLowerCase();
-      if (
-        type === 'image' ||
-        type === 'media' ||
-        type === 'font' ||
-        reqUrl.includes('google-analytics') ||
-        reqUrl.includes('doubleclick') ||
-        reqUrl.includes('facebook') ||
-        reqUrl.includes('analytics') ||
-        reqUrl.includes('gtm.js')
-      ) {
-        return route.abort();
-      }
-      return route.continue();
-    });
-
-    // Eviter la détection navigator.webdriver
+    // Éviter la détection navigator.webdriver
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
       // @ts-ignore
       window.chrome = { runtime: {} };
     });
 
-    // Navigation rapide sur la page (16s timeout max)
-    await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: 16000,
-    });
+    // Navigation rapide sur la page (12s timeout max)
+    try {
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 12000,
+      });
+    } catch (err: any) {
+      if (!err.message?.includes('navigating and changing')) {
+        throw err;
+      }
+    }
 
     // Si un sélecteur spécifique est attendu
     if (waitForSelector) {
@@ -185,21 +177,34 @@ export async function scrapeHtmlStealth(url: string, waitForSelector?: string): 
         // Poursuivre même si le sélecteur spécifique n'apparaît pas
       }
     } else {
-      // Défilement rapide simulé pour déclencher l'affichage dynamique
-      await page.evaluate(() => window.scrollBy(0, 400));
-      await page.waitForTimeout(600);
+      try {
+        // Défilement rapide simulé pour déclencher l'affichage dynamique
+        await page.evaluate(() => window.scrollBy(0, 400));
+        await page.waitForTimeout(500);
+      } catch {
+        // Ignorer si la page redirige
+      }
     }
 
-    const html = await page.content();
-    await page.close();
+    let html = '';
+    try {
+      html = await page.content();
+    } catch {
+      await page.waitForTimeout(800);
+      html = await page.content();
+    }
     return html;
-  } catch (err) {
+  } finally {
     try {
       await page.close();
     } catch {
       // Ignorer l'erreur de fermeture
     }
-    throw err;
+    try {
+      await context.close();
+    } catch {
+      // Ignorer l'erreur de fermeture
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import type { ScraperModule, ScrapedListing, ScraperResult, LogFn } from './type
 import { saveToCache, loadFromCache } from './cache.ts';
 import { getCredentials } from './credentials.ts';
 import { parseCADPrice, cleanProductUrl } from './utils.ts';
+import { getExchangeRates } from './exchange-rate.ts';
 import { randomHex, isOutlierTitle } from './shared.ts';
 
 const SOURCE = 'eBay (Annonces actives)';
@@ -16,33 +17,43 @@ function buildSearchUrl(model: string): string {
   return `https://www.ebay.ca/sch/i.html?_nkw=${encodeURIComponent(model)}&_sacat=0&_ipg=60`;
 }
 
-function parseHtmlListings($: cheerio.CheerioAPI): ScrapedListing[] {
+function parseHtmlListings($: cheerio.CheerioAPI, isUsd = false, usdRate = 1.42): ScrapedListing[] {
   const listings: ScrapedListing[] = [];
+  const seenUrls = new Set<string>();
   let idx = 0;
 
-  $('.srp-results .s-item, .s-item__wrapper, .s-item, .s-card, li[id^="item"]').each((_i, el) => {
+  $('.s-card, .su-card-container, .srp-results .s-item, .s-item__wrapper, .s-item, li[id^="item"]').each((_i, el) => {
     try {
       const $el = $(el);
       
-      // Extraction du titre
-      let title = $el.find('.s-item__title span[role="heading"]').text().trim() ||
-        $el.find('.s-item__title').text().trim() ||
-        $el.find('h3, [class*="title"]').first().text().trim();
+      // Extraction du lien produit
+      const link = $el.find('a[href*="/itm/"]').first().attr('href') ||
+                   $el.find('a.s-item__link, a.s-card__link').first().attr('href') || '';
+      if (!link || link.includes('item123456') || !link.includes('/itm/')) return;
+      const cleanUrl = cleanProductUrl(link, link);
+      if (seenUrls.has(cleanUrl)) return;
 
-      title = title.replace(/Opens in a new window or tab/gi, '').replace(/^Nouveau listing\s*/i, '').trim();
+      // Extraction du titre
+      let title = $el.find('[class*="title"], h3, h2, .s-item__title span[role="heading"]').first().text().trim() ||
+        $el.find('a[href*="/itm/"]').first().text().trim();
+
+      title = title.replace(/Opens in a new window or tab/gi, '')
+                   .replace(/Pre-Owned/gi, '')
+                   .replace(/Brand New/gi, '')
+                   .replace(/^Nouveau listing\s*/i, '').trim();
       if (!title || title.toLowerCase() === 'shop on ebay' || title.toLowerCase().includes('error page') || title.length < 5) return;
 
       // Extraction du prix
-      const priceText = $el.find('.s-item__price, [class*="price"]').first().text().trim();
-      const price = parseCADPrice(priceText);
+      const priceText = $el.find('[class*="price"], .s-item__price').first().text().trim();
+      let price = parseCADPrice(priceText);
       if (!price || price < 10) return;
 
-      // Extraction du lien produit
-      const link = $el.find('a.s-item__link, a[href*="/itm/"]').first().attr('href') || '';
-      if (!link || (!link.includes('/itm/') && !link.includes('ebay.ca/itm'))) return;
-      const cleanUrl = cleanProductUrl(link, link);
-      const condition = $el.find('.SECONDARY_INFO, .s-item__subtitle').text().trim();
+      if (isUsd && !priceText.includes('C $') && !priceText.includes('CA $') && !priceText.includes('CDN $')) {
+        price = Math.round(price * usdRate * 100) / 100;
+      }
 
+      seenUrls.add(cleanUrl);
+      const condition = $el.find('.SECONDARY_INFO, .s-item__subtitle').text().trim();
       const isOutlier = isOutlierTitle(title);
 
       idx++;
@@ -130,12 +141,15 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'fr-CA,fr;q=0.9,en-CA;q=0.8,en;q=0.7',
         },
-        timeout: { request: 15000 },
+        timeout: { request: 6000 },
       });
 
       if (resp.statusCode === 200) {
         const $ = cheerio.load(resp.body);
-        listings = parseHtmlListings($);
+        const pageTitle = $('title').text().trim().toLowerCase();
+        if (!pageTitle.includes('pardon our interruption') && !pageTitle.includes('error page')) {
+          listings = parseHtmlListings($);
+        }
       }
     } catch {
       // Ignorer, on tente Playwright en secours
@@ -143,13 +157,38 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
 
     // Tentative 2 : Playwright Stealth (si 0 produit trouvé)
     if (listings.length === 0) {
-      log(`🔎 [${SOURCE_KEY}] Tier 1 Alt: Aucun résultat direct, tentative avec Playwright Stealth...`);
+      log(`🔎 [${SOURCE_KEY}] Tier 1 Alt: Tentative Playwright Stealth sur ebay.ca...`);
       try {
         const html = await scrapeHtmlStealth(url);
         const $ = cheerio.load(html);
-        listings = parseHtmlListings($);
+        const pageTitle = $('title').text().trim().toLowerCase();
+        if (!pageTitle.includes('pardon our interruption') && !pageTitle.includes('error page')) {
+          listings = parseHtmlListings($);
+        } else {
+          log(`⚠️ [${SOURCE_KEY}] ebay.ca protégé par Akamai Bot Manager ("${$('title').text().trim()}").`);
+        }
       } catch (err) {
         log(`⚠️ [${SOURCE_KEY}] Tier 1 Alt Playwright échoué: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Tentative 3 : Fallback vers catalogue étendu ebay.com si ebay.ca est restreint
+    if (listings.length === 0) {
+      log(`🔎 [${SOURCE_KEY}] Tier 1 Alt: ebay.ca restreint, tentative via catalogue étendu ebay.com...`);
+      try {
+        const rates = await getExchangeRates();
+        const usdRate = rates['USD'] ?? 1.42;
+        const fallbackUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(model)}&_sacat=0&_ipg=60`;
+        const html = await scrapeHtmlStealth(fallbackUrl);
+        const $ = cheerio.load(html);
+        const pageTitle = $('title').text().trim().toLowerCase();
+        if (!pageTitle.includes('pardon our interruption') && !pageTitle.includes('error page')) {
+          listings = parseHtmlListings($, true, usdRate);
+        } else {
+          log(`⚠️ [${SOURCE_KEY}] ebay.com également protégé par Akamai Bot Manager ("${$('title').text().trim()}").`);
+        }
+      } catch (err) {
+        log(`⚠️ [${SOURCE_KEY}] Tier 1 Alt ebay.com échoué: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -250,17 +289,11 @@ async function tier2JinaAndRSS(model: string, log: LogFn): Promise<ScrapedListin
     let resp = await gotScraping({
       url: jinaUrl,
       headers,
-      timeout: { request: 45000 }
+      timeout: { request: 10000 }
     });
 
     if (resp.statusCode === 402 || resp.statusCode === 429) {
-      log(`⏳ [${SOURCE_KEY}] Jina a renvoyé ${resp.statusCode} (Limite de taux dépassée). Retrying in 3s...`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      resp = await gotScraping({
-        url: jinaUrl,
-        headers,
-        timeout: { request: 45000 }
-      });
+      log(`⏳ [${SOURCE_KEY}] Jina a renvoyé ${resp.statusCode} (Limite de taux dépassée).`);
     }
 
     if (resp.statusCode === 200) {
@@ -401,15 +434,15 @@ const ebayActiveScraper: ScraperModule = {
         };
       }
 
-      // Tier 2: RSS Direct
-      const tier2Listings = await tier2RSS(model, log);
+      // Tier 2: Jina Bridge & RSS
+      const tier2Listings = await tier2JinaAndRSS(model, log);
       if (tier2Listings && tier2Listings.length > 0) {
         saveToCache(SOURCE_KEY, model, tier2Listings);
         return {
           listings: tier2Listings,
           source: SOURCE,
           sourceKey: SOURCE_KEY,
-          method: 'rss',
+          method: 'api',
           timestamp,
           success: true,
         };

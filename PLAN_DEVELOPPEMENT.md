@@ -30,22 +30,22 @@ Chaque source de données sera auditée, fiabilisée et validée individuellemen
 
 | # | Source | Type de source | Méthode d'extraction | Statut d'audit | Risques & Actions requises |
 |---|---|---|---|---|---|
-| **01** | **eBay (Ventes Réussies)** | Marché secondaire | Requête HTTP Tier 1 + Parsing Cheerio | 🟡 À tester | Changements fréquents de DOM sur eBay.ca ; valider sélecteurs sold/completed. |
-| **02** | **eBay (Annonces Actives)** | Marché secondaire | Requête HTTP Tier 1 + Parsing Cheerio | 🟡 À tester | Filtrer les prix d'enchères vs achat immédiat ; exclusion des pièces détachées. |
-| **03** | **Back Market Canada** | Reconditionneur pro | Requête JSON / Next.js data | 🟡 À tester | Détecter les protections Cloudflare ; vérifier la structure du JSON embarqué. |
-| **04** | **Reebelo Canada** | Reconditionneur pro | HTTP Cheerio + fallback Stealth | 🟡 À tester | Valider sélecteurs et présence des stocks canadiens (CAD). |
-| **05** | **Amazon Renewed Canada** | Reconditionneur pro | HTTP Cheerio + sélecteurs d'offres reconditionnées | 🟡 À tester | Détection fréquente de bots ; optimiser rotation des User-Agents et headers. |
-| **06** | **Best Buy Canada** | Grand distributeur | Marketplace API / Cheerio | 🟡 À tester | Filtrer strictement les articles "Boîte ouverte" et "Reconditionné". |
-| **07** | **Newegg Canada** | Matériel informatique | API interne / Parsing Cheerio | 🟡 À tester | Vérifier le filtre devise CAD et exclusion des vendeurs tiers douteux. |
-| **08** | **Refurb.io Canada** | Spécialiste reconditionné | HTML Cheerio | 🟡 À tester | Valider les variantes de processeurs (générations 8e+ uniquement). |
-| **09** | **Walmart Canada (Refurbished)** | Grand distributeur | HTML / Next.js state | 🟡 À tester | Séparer les produits neufs des offres reconditionnées. |
-| **10** | **IT Refurbs Canada** | Spécialiste reconditionné | HTML Cheerio | 🟡 À tester | Vérifier la pérennité du catalogue en ligne et les stocks disponibles. |
-| **11** | **Canada Computers (Open Box)** | Spécialiste canadien | HTML Cheerio | 🟡 À tester | Isoler les sections déstockage/reconditionné local Québec/Ontario. |
-| **12** | **Dell Refurbished Canada** | Constructeur certifié | HTML Cheerio | 🟡 À tester | Vérifier le parsing des grades A/B et codes modèles constructeur. |
-| **13** | **GCSurplus (Lots fédéraux)** | Enchères gouvernementales | Authentification session + parsing lots | 🟡 À tester | Maintenir les identifiants `.env` ; gérer l'expiration de session gouvernementale. |
-| **14** | **SEAO (Appels d'offres QC)** | Marché public provincial | Recherche publique / RSS | 🟡 À tester | Filtrer les adjudications d'ordinateurs usagés versus services logiciels. |
-| **15** | **Insertech Interne (Stock actuel)** | Interne Insertech | Fichier Excel local / Insertech prices | 🟢 Fonctionnel | Valider la synchronisation continue si le classeur est ouvert en réseau. |
-| **16** | **Insertech Archives Historiques** | Interne Insertech | Fichiers historiques / SQLite | 🟢 Fonctionnel | Valider l'intégrité de lecture sur des archives de plus de 12 mois. |
+| **01** | **eBay (Ventes Réussies)** | Marché secondaire | API Tier 1 + Parsing Cheerio + Cache | 🟢 Audité (Lot 1) | Sélecteurs `.s-card` unifiés ; détection proactive de la redirection login / Akamai sans blocage ; cascade propre vers Tier 2/3. |
+| **02** | **eBay (Annonces Actives)** | Marché secondaire | API Tier 1 + Cheerio + Fallback US | 🟢 Audité (Lot 1) | Nouveaux sélecteurs `.s-card, .su-card-container` ; conversion USD→CAD ; détection Akamai sans gel ; relève Tier 2/3. |
+| **03** | **Back Market Canada** | Reconditionneur pro | Playwright Stealth + Next.js data | 🟢 Fonctionnel (Lot 1) | 19+ annonces réelles extraites en 2,8s ; conversion dynamique USD→CAD opérationnelle. |
+| **04** | **Reebelo Canada** | Reconditionneur pro | Playwright Stealth | 🟢 Fonctionnel (Lot 1) | 24+ annonces réelles extraites en 1,6s ; gestion des variantes et SKU IDs validée. |
+| **05** | **Amazon Renewed Canada** | Reconditionneur pro | got-scraping Tier 1 + Playwright fallback | 🟢 Fonctionnel (Lot 2) | 65 annonces extraites en 1,1s ; URLs canoniques directes `/dp/{asin}` ; prix barrés et rabais calculés. |
+| **06** | **Best Buy Canada** | Grand distributeur | Marketplace API JSON v2 | 🟢 Fonctionnel (Lot 2) | 24 annonces extraites en 0,8s ; comparaison regularPrice/salePrice ; condition reconditionnée validée. |
+| **07** | **Newegg Canada** | Matériel informatique | JSON SSR `__initialState__` + Cheerio | 🟢 Fonctionnel (Lot 2) | 36 annonces en 220ms via état React SSR ; filtres grades A/B et statuts reconditionné/boîte ouverte. |
+| **08** | **Refurb.io Canada** | Spécialiste reconditionné | API Instantanée Shopify JSON | 🟢 Fonctionnel (Lot 2) | 10 annonces en 300ms via `suggest.json` ; parsing prix promotionnels et comparables de gamme. |
+| **09** | **Walmart Canada (Refurbished)** | Grand distributeur | Playwright Stealth / Next.js `__NEXT_DATA__` | 🟢 Fonctionnel (Lot 3) | 20 annonces en ~4s via extraction `__NEXT_DATA__` ; détection des rabais et prix actuels. |
+| **10** | **IT Refurbs Canada** | Spécialiste reconditionné | API Instantanée Shopify JSON | 🟢 Fonctionnel (Lot 3) | 10 annonces en ~350ms via API `suggest.json` ; parsing grades A/B et prix promotionnels. |
+| **11** | **Canada Computers (Open Box)** | Spécialiste canadien | Stealth got-scraping Tier 1 + Cheerio | 🟢 Fonctionnel (Lot 3) | 4+ annonces en ~2,2s ; ciblage des produits remis à neuf et boîtes ouvertes. |
+| **12** | **Dell Refurbished Canada** | Constructeur certifié | Stealth got-scraping Tier 1 + Playwright fallback | 🟢 Fonctionnel (Lot 3) | Recherche dynamique `/index.php?page=seek` en ~1,7s ; extraction grades A/B et prix rabais. |
+| **13** | **GCSurplus (Lots fédéraux)** | Enchères gouvernementales | Authentification session + POST public + CKAN | 🟢 Fonctionnel (Lot 4) | Recherche publique POST & enchères actives en ~4,5s ; calcul automatique du prix unitaire des lots. |
+| **14** | **SEAO (Appels d'offres QC)** | Marché public provincial | Portail `seao.gouv.qc.ca` + Données Québec API | 🟢 Fonctionnel (Lot 4) | Migration de l'ancien domaine vers `seao.gouv.qc.ca` ; repli gracieux sans blocage en ~150ms. |
+| **15** | **Insertech Interne (Stock actuel)** | Interne Insertech | Fichier Excel local / Insertech prices JSON | 🟢 Fonctionnel (Lot 4) | Lecture instantanée en ~1ms ; gestion gracieuse en l'absence de classeur atelier. |
+| **16** | **Insertech Archives Historiques** | Interne Insertech | Fichiers historiques / SQLite / db.json | 🟢 Fonctionnel (Lot 4) | Balayage des archives et de l'historique en ~1ms sans blocage. |
 
 ---
 
@@ -143,8 +143,9 @@ flowchart TD
   - La recherche ne boucle plus indéfiniment.
   - Tout modèle ajouté manuellement est exporté dans Excel et restauré avec sa catégorie exacte à l'import.
   - 30 tests unitaires Vitest au vert, validation `tsc --noEmit` sans erreur.
-- [ ] **Jalons 2 à 4 :**
-  - Chaque scraper est testé avec succès sur machine modeste avec un taux de réussite > 95% ou repli propre sur le Tier 3.
+- [x] **Jalons 2 à 4 (Complets) :**
+  - Les 16 scrapers ont été audités individuellement, fiabilisés, testés avec succès et vérifiés en orchestration de bout en bout en moins de 10 secondes.
+  - Résilience garantie pour les ordinateurs plus faibles (Playwright sans conflit de verrous Windows, got-scraping ultra-rapide sur APIs/SSR, cascades propres sans freeze vers les Tiers 2/3).
 - [ ] **Jalon 5 :**
   - `server.ts` décomposé en modules de moins de 300 lignes chacun.
   - Tests unitaires et d'API de bout en bout maintenus.

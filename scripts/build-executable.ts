@@ -124,6 +124,16 @@ if (fs.existsSync(path.join(ROOT_DIR, 'loading.html'))) {
   fs.copyFileSync(path.join(ROOT_DIR, 'loading.html'), loadingPath);
 }
 
+// Copier les icônes de l'application (app.ico et app-icon.png)
+const appIcoPath = path.join(ROOT_DIR, 'app.ico');
+if (fs.existsSync(appIcoPath)) {
+  fs.copyFileSync(appIcoPath, path.join(PORTABLE_DIR, 'app.ico'));
+}
+const appPngPath = path.join(ROOT_DIR, 'app-icon.png');
+if (fs.existsSync(appPngPath)) {
+  fs.copyFileSync(appPngPath, path.join(PORTABLE_DIR, 'app-icon.png'));
+}
+
 // Copier node.exe pour garantir le fonctionnement 100% autonome sans dépendance Node.js système
 try {
   const nodeExePath = process.execPath;
@@ -298,6 +308,54 @@ wscript.exe "%~dp0Lancer-Insertech-GUI.vbs"
 exit
 `;
 fs.writeFileSync(path.join(PORTABLE_DIR, 'Lancer-Insertech.bat'), winBatContent, 'utf-8');
+
+// 4.3 Script de création de raccourci sur le Bureau avec l'icône magique
+const makeDesktopShortcutVbs = `' ==============================================================
+' Script de création du raccourci Bureau avec icône personnalisée
+' ==============================================================
+Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
+desktopPath = WshShell.SpecialFolders("Desktop")
+
+Set oShortcut = WshShell.CreateShortcut(desktopPath & "\\Évaluateur Insertech.lnk")
+oShortcut.TargetPath = "wscript.exe"
+oShortcut.Arguments = """" & scriptDir & "\\Lancer-Insertech-GUI.vbs"""
+oShortcut.WorkingDirectory = scriptDir
+If fso.FileExists(scriptDir & "\\app.ico") Then
+  oShortcut.IconLocation = scriptDir & "\\app.ico,0"
+End If
+oShortcut.Description = "Évaluateur de Prix Insertech (Mode Silencieux)"
+oShortcut.Save
+
+MsgBox "Le raccourci avec icône magique a été créé sur votre Bureau avec succès !", 64, "Évaluateur Insertech"
+`;
+fs.writeFileSync(path.join(PORTABLE_DIR, 'Créer-Raccourci-Bureau.vbs'), makeDesktopShortcutVbs, 'utf-8');
+
+// Créer également un raccourci direct dans le dossier portable
+if (process.platform === 'win32') {
+  try {
+    const makeLocalLnk = `Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
+Set oShortcut = WshShell.CreateShortcut(scriptDir & "\\Évaluateur Insertech.lnk")
+oShortcut.TargetPath = "wscript.exe"
+oShortcut.Arguments = """" & scriptDir & "\\Lancer-Insertech-GUI.vbs"""
+oShortcut.WorkingDirectory = scriptDir
+If fso.FileExists(scriptDir & "\\app.ico") Then
+  oShortcut.IconLocation = scriptDir & "\\app.ico,0"
+End If
+oShortcut.Description = "Lancer l'Évaluateur de Prix Insertech en mode silencieux"
+oShortcut.Save
+`;
+    const tempLnkVbs = path.join(PORTABLE_DIR, '_gen_lnk.vbs');
+    fs.writeFileSync(tempLnkVbs, makeLocalLnk, 'utf-8');
+    execSync(`cscript //nologo "${tempLnkVbs}"`, { cwd: PORTABLE_DIR });
+    fs.unlinkSync(tempLnkVbs);
+  } catch (e) {
+    console.warn('⚠️ Remarque lors de la création du raccourci .lnk local:', e);
+  }
+}
 
 // Linux / macOS Launcher (.sh et .command)
 const macCommandContent = `#!/bin/bash

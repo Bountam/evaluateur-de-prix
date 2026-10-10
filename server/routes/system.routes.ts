@@ -2,11 +2,11 @@ import { Router } from "express";
 import { sqliteDb } from "../database/connection.ts";
 import { readDB, writeDB } from "../database/repository.ts";
 import { getCredentials, saveCredentials } from "../../scrapers/credentials.ts";
-import { checkApplicationUpdate, performApplicationUpdate } from "../services/update.service.ts";
+import { checkApplicationUpdate, performApplicationUpdate, UpdateValidationError } from "../services/update.service.ts";
 import { checkSelectorsHealth, healSelectors } from "../services/healing.service.ts";
+import { APP_VERSION } from "../config/version.ts";
 
 const router = Router();
-const APP_VERSION = "1.4.1";
 const GITHUB_REPO = process.env.GITHUB_REPO || "Bountam/evaluateur-de-prix";
 
 // État de santé du serveur et utilisation mémoire
@@ -44,16 +44,26 @@ router.get("/api/check-update", async (_req, res) => {
 
 // Exécution de mise à jour automatique
 router.post("/api/perform-update", async (req, res) => {
-  const { downloadUrl } = req.body;
+  const { downloadUrl, sha256 } = req.body || {};
   if (!downloadUrl) {
     res.status(400).json({ success: false, error: "URL de téléchargement requise." });
     return;
   }
 
   try {
-    const result = await performApplicationUpdate(downloadUrl);
+    const result = await performApplicationUpdate(downloadUrl, {
+      repo: GITHUB_REPO,
+      expectedSha256: typeof sha256 === "string" ? sha256 : undefined
+    });
     res.json(result);
   } catch (err: any) {
+    if (err instanceof UpdateValidationError) {
+      res.status(400).json({
+        success: false,
+        error: err.message
+      });
+      return;
+    }
     console.error("❌ Erreur lors de l'application de la mise à jour:", err);
     res.status(500).json({
       success: false,

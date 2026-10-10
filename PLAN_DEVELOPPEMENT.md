@@ -150,8 +150,18 @@ flowchart TD
   - `server.ts` décomposé de 2471 lignes à un point d'entrée modulaire de 9 lignes réexportant l'architecture structurée `server/`.
   - Modules dédiés : `config/`, `database/` (SQLite WAL mode), `services/` (Scraping, Excel, Update, Healing), `middlewares/`, `routes/`.
   - 39 tests unitaires et d'intégration Vitest au vert, validation `tsc --noEmit` et compilation de production `npm run build` réussies.
-- [ ] **Jalon 5.2 :**
-  - Découpage du composant `ModelDetail.tsx` (~1680 lignes) en sous-composants ciblés.
+- [x] **Jalon 5.2 :**
+  - Découpage du composant `ModelDetail.tsx` (de 1687 lignes à 267 lignes) en sous-composants modulaires dans `src/components/model-detail/` :
+    - `ModelDetailHeader.tsx` : En-tête avec catégorie, nom de modèle et descriptif.
+    - `PriceTrendSparkline.tsx` : Tracé SVG de la courbe de tendance historique des prix.
+    - `StatisticalSummaryCard.tsx` : Synthèse statistique (prix médian, comparables validés, dernière ingestion, sparkline) et état vide.
+    - `ScrapingProgressMonitor.tsx` : Moniteur de suivi en temps réel avec barre de progression globale et grille des 16 sources avec volet de diagnostic interactif.
+    - `ListingFilterBar.tsx` : Volets accordéons repliables (16 sources, Écran & OS, Garantie & Vente, Hardware RAM/CPU/SSD/Année), recherche par mot-clé et chips de filtres actifs.
+    - `ListingTable.tsx` : Tableau triable multi-colonnes, sélection avec case à cocher, badges d'anomalies avec infobulle explicative, badges de specs cliquables et édition en direct du prix au double-clic.
+    - `ModelDetailSummaryFooter.tsx` : Pied de page rétro dynamique avec médiane calculée et écart-type sur filtres actifs.
+    - `types.ts` & `utils.ts` : Typages stricts et fonctions utilitaires pour l'analyse des anomalies, la détection des specs et le tri/filtrage.
+  - Ajout d'une suite de 30 tests unitaires Vitest (`tests/model-detail.test.ts`) portant sur les calculs d'écarts, la détection des anomalies et le filtrage.
+  - 69 tests Vitest au vert sur 6 fichiers de test, validation TypeScript (`tsc --noEmit`) et build de production (`npm run build`) validés sans erreur.
 - [ ] **Jalon 6 :**
   - `npm audit` retourne 0 vulnérabilité.
   - Export et import Excel 100% fidèles au modèle réglementaire d'Insertech.

@@ -31,7 +31,7 @@ router.get("/api/version", (_req, res) => {
     success: true,
     version: APP_VERSION,
     channel: "Stable",
-    releaseDate: "2026-09-21",
+    releaseDate: "2026-10-10",
     name: "Évaluateur de Prix Insertech"
   });
 });

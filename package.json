@@ -1,7 +1,7 @@
 {
   "name": "evaluateur-prix-insertech",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Bountam/evaluateur-de-prix.git"
@@ -12,7 +12,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
     "build:executable": "tsx scripts/build-executable.ts",
     "start": "node dist/server.js",
-    "test": "vitest run",
+    "test": "vitest run --fileParallelism=false",
     "clean": "rm -rf dist db.json",
     "lint": "tsc --noEmit"
   },

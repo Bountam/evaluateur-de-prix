@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { ScraperModule, ScrapedListing, ScraperResult, LogFn } from './types.ts';
 import { saveToCache, loadFromCache } from './cache.ts';
 import { getCredentials } from './credentials.ts';
@@ -35,7 +35,38 @@ function parseCADPrice(raw: any): number | null {
   return Math.round(val * 100) / 100;
 }
 
-function tier1ScanArchiveExcel(model: string, log: LogFn): ScrapedListing[] | null {
+function getWorksheetRows(worksheet: ExcelJS.Worksheet): Record<string, any>[] {
+  const rows: Record<string, any>[] = [];
+  const headerRow = worksheet.getRow(1);
+  if (!headerRow || headerRow.cellCount === 0) return rows;
+
+  const headers: string[] = [];
+  headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber] = String(cell.value || '').trim();
+  });
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const obj: Record<string, any> = {};
+    let hasValue = false;
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const h = headers[colNumber];
+      if (h) {
+        let v = cell.value;
+        if (v && typeof v === 'object') {
+          if ('result' in v) v = (v as any).result;
+          else if ('text' in v) v = (v as any).text;
+        }
+        obj[h] = v;
+        if (v !== undefined && v !== null && v !== '') hasValue = true;
+      }
+    });
+    if (hasValue) rows.push(obj);
+  });
+  return rows;
+}
+
+async function tier1ScanArchiveExcel(model: string, log: LogFn): Promise<ScrapedListing[] | null> {
   const { INSERTECH_ARCHIVES_PATH: customPath } = getCredentials();
   const archivesDir = customPath || process.env.INSERTECH_ARCHIVES_PATH || path.join(PROJECT_ROOT, 'data', 'archives');
   const fullDir = path.isAbsolute(archivesDir) ? archivesDir : path.join(PROJECT_ROOT, archivesDir);
@@ -58,10 +89,10 @@ function tier1ScanArchiveExcel(model: string, log: LogFn): ScrapedListing[] | nu
     for (const file of files) {
       try {
         const filePath = path.join(fullDir, file);
-        const workbook = XLSX.readFile(filePath);
-        for (const sheetName of workbook.SheetNames) {
-          const sheet = workbook.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(filePath);
+        for (const sheet of workbook.worksheets) {
+          const rows = getWorksheetRows(sheet);
 
           for (const row of rows) {
             const titleCol = Object.keys(row).find(k => /mod[èe]le|titre|produit|item|description|name/i.test(k)) || Object.keys(row)[0];
@@ -204,7 +235,7 @@ const insertechArchivesScraper: ScraperModule = {
   async scrape(model: string, log: LogFn): Promise<ScraperResult> {
     const timestamp = new Date().toISOString();
     try {
-      const excelArchives = tier1ScanArchiveExcel(model, log);
+      const excelArchives = await tier1ScanArchiveExcel(model, log);
       if (excelArchives && excelArchives.length > 0) {
         saveToCache(SOURCE_KEY, model, excelArchives);
         return {

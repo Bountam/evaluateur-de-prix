@@ -162,6 +162,8 @@ flowchart TD
     - `types.ts` & `utils.ts` : Typages stricts et fonctions utilitaires pour l'analyse des anomalies, la détection des specs et le tri/filtrage.
   - Ajout d'une suite de 30 tests unitaires Vitest (`tests/model-detail.test.ts`) portant sur les calculs d'écarts, la détection des anomalies et le filtrage.
   - 69 tests Vitest au vert sur 6 fichiers de test, validation TypeScript (`tsc --noEmit`) et build de production (`npm run build`) validés sans erreur.
-- [ ] **Jalon 6 :**
-  - `npm audit` retourne 0 vulnérabilité.
-  - Export et import Excel 100% fidèles au modèle réglementaire d'Insertech.
+- [x] **Jalon 6 (Complet) :**
+  - `npm audit` retourne **0 vulnérabilité** (résolution de 17 vulnérabilités dont 1 critique et 9 hautes, élimination définitive de `xlsx`, mise à niveau des dépendances et override sécurisé `uuid@^11.1.1`).
+  - Migration intégrale de la suite Excel vers **`exceljs`** (`server/services/excel.service.ts`, `server/routes/excel.routes.ts`, `scrapers/insertech-internal.ts`, `scrapers/insertech-archives.ts`).
+  - Export et import Excel 100% fidèles au modèle réglementaire d'Insertech avec styles professionnels (en-tête sombre `#2D3436`, polices blanches, largeurs adaptées).
+  - 75 tests unitaires et d'intégration Vitest au vert sur 7 suites de tests (`tests/excel-service.test.ts`), validation stricte `tsc --noEmit` et compilation de production `npm run build` réussies.

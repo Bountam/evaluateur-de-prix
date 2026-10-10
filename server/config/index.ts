@@ -13,7 +13,9 @@ export const HOST = process.env.HOST || "127.0.0.1";
 export const PROJECT_ROOT = process.cwd();
 export const DB_PATH = path.join(PROJECT_ROOT, "db.json");
 export const DATA_DIR = path.join(PROJECT_ROOT, "data");
-export const SQLITE_PATH = path.join(DATA_DIR, "database.sqlite");
+export const SQLITE_PATH = process.env.VITEST
+  ? ":memory:"
+  : (process.env.SQLITE_PATH || path.join(DATA_DIR, "database.sqlite"));
 export const BACKUP_DIR = path.join(DATA_DIR, "backups");
 export const EXPORTS_DIR = path.join(PROJECT_ROOT, "exports");
 export const LOGS_DIR = path.join(PROJECT_ROOT, "logs");

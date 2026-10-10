@@ -1,22 +1,23 @@
 import { Router } from "express";
 import fs from "fs";
 import path from "path";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { EXPORTS_DIR, MASTER_FILE_NAME } from "../config/index.ts";
 import { intensiveLimiter } from "../middlewares/rateLimiters.ts";
 import {
   generateMasterExcel,
   generateTemplateExcel,
   processImportPreview,
-  executeImportExcel
+  executeImportExcel,
+  worksheetToJson
 } from "../services/excel.service.ts";
 
 const router = Router();
 
 // Déclencher la génération du classeur Excel complet
-router.post("/api/export-excel", (_req, res) => {
+router.post("/api/export-excel", async (_req, res) => {
   try {
-    const result = generateMasterExcel();
+    const result = await generateMasterExcel();
     res.json(result);
   } catch (err: any) {
     console.error("Error generating Excel export:", err);
@@ -25,12 +26,12 @@ router.post("/api/export-excel", (_req, res) => {
 });
 
 // Téléchargement direct du fichier Excel maître généré
-router.get("/api/download-excel", (_req, res) => {
+router.get("/api/download-excel", async (_req, res) => {
   try {
     const excelPath = path.join(EXPORTS_DIR, MASTER_FILE_NAME);
 
     if (!fs.existsSync(excelPath)) {
-      generateMasterExcel();
+      await generateMasterExcel();
     }
 
     res.download(excelPath, MASTER_FILE_NAME, (err) => {
@@ -47,9 +48,9 @@ router.get("/api/download-excel", (_req, res) => {
 });
 
 // Téléchargement d'un gabarit vierge conforme pour l'import
-router.get("/api/download-template", (_req, res) => {
+router.get("/api/download-template", async (_req, res) => {
   try {
-    const buffer = generateTemplateExcel();
+    const buffer = await generateTemplateExcel();
     res.setHeader("Content-Disposition", 'attachment; filename="Import_Manuel_Gabarit.xlsx"');
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buffer);
@@ -60,10 +61,10 @@ router.get("/api/download-template", (_req, res) => {
 });
 
 // Prévisualisation des données avant confirmation d'importation
-router.post("/api/import-preview", (req, res) => {
+router.post("/api/import-preview", async (req, res) => {
   try {
     const { fileData } = req.body;
-    let workbook: XLSX.WorkBook;
+    const workbook = new ExcelJS.Workbook();
 
     if (fileData) {
       const cleanBase64 = fileData.replace(/^data:.*;base64,/, "");
@@ -74,11 +75,11 @@ router.post("/api/import-preview", (req, res) => {
         return;
       }
 
-      workbook = XLSX.read(buffer, { type: "buffer" });
+      await workbook.xlsx.load(buffer);
     } else {
       const masterPath = path.join(EXPORTS_DIR, MASTER_FILE_NAME);
       if (fs.existsSync(masterPath)) {
-        workbook = XLSX.readFile(masterPath);
+        await workbook.xlsx.readFile(masterPath);
       } else {
         res.status(400).json({ success: false, message: `Aucun fichier maître ${MASTER_FILE_NAME} trouvé sur le serveur.` });
         return;
@@ -97,7 +98,7 @@ router.post("/api/import-preview", (req, res) => {
 router.post("/api/import-excel", intensiveLimiter, async (req, res) => {
   try {
     const { fileData } = req.body;
-    let workbook: XLSX.WorkBook;
+    const workbook = new ExcelJS.Workbook();
 
     if (fileData) {
       const cleanBase64 = fileData.replace(/^data:.*;base64,/, "");
@@ -114,7 +115,7 @@ router.post("/api/import-excel", intensiveLimiter, async (req, res) => {
       }
 
       try {
-        workbook = XLSX.read(buffer, { type: "buffer" });
+        await workbook.xlsx.load(buffer);
       } catch {
         res.status(400).json({ success: false, message: "Impossible de lire le contenu Excel. Le fichier est probablement corrompu." });
         return;
@@ -123,7 +124,7 @@ router.post("/api/import-excel", intensiveLimiter, async (req, res) => {
       const masterPath = path.join(EXPORTS_DIR, MASTER_FILE_NAME);
       if (fs.existsSync(masterPath)) {
         try {
-          workbook = XLSX.readFile(masterPath);
+          await workbook.xlsx.readFile(masterPath);
         } catch {
           res.status(400).json({ success: false, message: `Impossible de lire le fichier maître ${MASTER_FILE_NAME}.` });
           return;
@@ -135,10 +136,8 @@ router.post("/api/import-excel", intensiveLimiter, async (req, res) => {
     }
 
     let hasValidModelColumn = false;
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      if (!sheet) continue;
-      const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+    for (const worksheet of workbook.worksheets) {
+      const rows = worksheetToJson(worksheet);
       if (rows.some(r => r["Modèle"] || r["Modele"] || r["Model"] || r["Modèle d'équipement"] || r["Modèle informatique"] || r["Modèle d'ordinateur"])) {
         hasValidModelColumn = true;
         break;

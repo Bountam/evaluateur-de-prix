@@ -4,7 +4,7 @@ import { seedDatabase } from "../server/database/seed.ts";
 import { generateMasterExcel, generateTemplateExcel, parseCADPrice, parseExcelDate } from "../server/services/excel.service.ts";
 import { getEstimatedBasePrice, getBrand, getFunctionalUrl, getModelMeta } from "../server/config/index.ts";
 import { isNewerVersion } from "../server/services/update.service.ts";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 describe("Architecture Modulaire du Serveur (Jalon 5.1)", () => {
   describe("Configuration & Utilitaires", () => {
@@ -92,23 +92,27 @@ describe("Architecture Modulaire du Serveur (Jalon 5.1)", () => {
       expect(d.getFullYear()).toBe(2026);
     });
 
-    it("génère un gabarit vierge avec la feuille Inventaire Global", () => {
-      const buffer = generateTemplateExcel();
+    it("génère un gabarit vierge avec la feuille Inventaire Global", async () => {
+      const buffer = await generateTemplateExcel();
       expect(buffer).toBeDefined();
       expect(buffer.length).toBeGreaterThan(1000);
 
-      const wb = XLSX.read(buffer, { type: "buffer" });
-      expect(wb.SheetNames).toContain("Inventaire Global");
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+      const sheetNames = wb.worksheets.map(w => w.name);
+      expect(sheetNames).toContain("Inventaire Global");
     });
 
-    it("génère le classeur maître complet avec la feuille Modèles Personnalisés", () => {
-      const result = generateMasterExcel();
+    it("génère le classeur maître complet avec la feuille Modèles Personnalisés", async () => {
+      const result = await generateMasterExcel();
       expect(result.success).toBe(true);
       expect(result.fileName).toBe("Export_Donnees_Brutes.xlsx");
 
-      const wb = XLSX.readFile(result.localMasterPath);
-      expect(wb.SheetNames).toContain("Inventaire Global");
-      expect(wb.SheetNames).toContain("Métadonnées");
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(result.localMasterPath);
+      const sheetNames = wb.worksheets.map(w => w.name);
+      expect(sheetNames).toContain("Inventaire Global");
+      expect(sheetNames).toContain("Métadonnées");
     });
   });
 });

@@ -134,12 +134,15 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'fr-CA,fr;q=0.9,en-CA;q=0.8,en;q=0.7',
         },
-        timeout: { request: 15000 },
+        timeout: { request: 6000 },
       });
 
       if (resp.statusCode === 200) {
         const $ = cheerio.load(resp.body);
-        listings = parseHtmlListings($);
+        const pageTitle = $('title').text().trim().toLowerCase();
+        if (!pageTitle.includes('sign in') && !pageTitle.includes('se connecter') && !pageTitle.includes('pardon our interruption') && !pageTitle.includes('error page')) {
+          listings = parseHtmlListings($);
+        }
       }
     } catch {
       // Ignorer, on tente Playwright en secours
@@ -147,11 +150,18 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
 
     // Tentative 2 : Playwright Stealth (si 0 produit trouvé)
     if (listings.length === 0) {
-      log(`🔎 [${SOURCE_KEY}] Tier 1 Alt: Aucun résultat direct, tentative avec Playwright Stealth...`);
+      log(`🔎 [${SOURCE_KEY}] Tier 1 Alt: Tentative avec Playwright Stealth sur ventes complétées...`);
       try {
         const html = await scrapeHtmlStealth(url);
         const $ = cheerio.load(html);
-        listings = parseHtmlListings($);
+        const pageTitle = $('title').text().trim().toLowerCase();
+        if (pageTitle.includes('sign in') || pageTitle.includes('se connecter')) {
+          log(`ℹ️ [${SOURCE_KEY}] eBay requiert une authentification utilisateur pour afficher les ventes complétées.`);
+        } else if (!pageTitle.includes('pardon our interruption') && !pageTitle.includes('error page')) {
+          listings = parseHtmlListings($);
+        } else {
+          log(`⚠️ [${SOURCE_KEY}] eBay bloque l'accès public aux ventes complétées ("${$('title').text().trim()}").`);
+        }
       } catch (err) {
         log(`⚠️ [${SOURCE_KEY}] Tier 1 Alt Playwright échoué: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -162,7 +172,7 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
       return listings;
     }
 
-    log(`⚠️ [${SOURCE_KEY}] Tier 1: DOM HTML bloqué ou vide, bascule en Tier 2 Jina Bridge...`);
+    log(`⚠️ [${SOURCE_KEY}] Tier 1: DOM HTML bloqué ou restreint, bascule en Tier 2 Jina Bridge...`);
     return null;
   } catch (err) {
     log(`⚠️ [${SOURCE_KEY}] Tier 1 échoué: ${err instanceof Error ? err.message : String(err)}`);
@@ -254,17 +264,11 @@ async function tier2JinaAndRSS(model: string, log: LogFn): Promise<ScrapedListin
     let resp = await gotScraping({
       url: jinaUrl,
       headers,
-      timeout: { request: 45000 }
+      timeout: { request: 10000 }
     });
 
     if (resp.statusCode === 402 || resp.statusCode === 429) {
-      log(`⏳ [${SOURCE_KEY}] Jina a renvoyé ${resp.statusCode} (Limite de taux dépassée). Retrying in 3s...`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      resp = await gotScraping({
-        url: jinaUrl,
-        headers,
-        timeout: { request: 45000 }
-      });
+      log(`⏳ [${SOURCE_KEY}] Jina a renvoyé ${resp.statusCode} (Limite de taux dépassée).`);
     }
 
     if (resp.statusCode === 200) {
@@ -406,15 +410,15 @@ const ebayCompletedScraper: ScraperModule = {
         };
       }
 
-      // Tier 2: RSS Direct
-      const tier2Listings = await tier2RSS(model, log);
+      // Tier 2: Jina Bridge & RSS
+      const tier2Listings = await tier2JinaAndRSS(model, log);
       if (tier2Listings && tier2Listings.length > 0) {
         saveToCache(SOURCE_KEY, model, tier2Listings);
         return {
           listings: tier2Listings,
           source: SOURCE,
           sourceKey: SOURCE_KEY,
-          method: 'rss',
+          method: 'api',
           timestamp,
           success: true,
         };

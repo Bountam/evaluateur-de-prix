@@ -15,7 +15,7 @@ function randomHex(len: number): string {
 }
 
 function buildSearchUrl(model: string): string {
-  return `https://www.dellrefurbished.ca/searchresults?q=${encodeURIComponent(model)}`;
+  return `https://www.dellrefurbished.ca/index.php?page=seek&id[m]=pattern&id[q]=${encodeURIComponent(model)}`;
 }
 
 async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] | null> {
@@ -33,7 +33,8 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'fr-CA,fr;q=0.9,en-CA;q=0.8,en;q=0.7',
         },
-        timeout: { request: 15000 },
+        timeout: { request: 10000 },
+        retry: { limit: 0 },
       });
 
       if (resp.statusCode === 200) {
@@ -58,20 +59,22 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
       const listings: ScrapedListing[] = [];
       let idx = 0;
 
-      $('.product-item, .productCard, article, [class*="product-card"], .product-item-info').each((_i, el) => {
+      $('.thumb-grid, .product-item, .productCard, article, [class*="product-card"], .product-item-info').each((_i, el) => {
         try {
           const $el = $(el);
-          const title = $el.find('.product-name, .product-item-name, a.product-item-link, h2, h3').first().text().trim();
+          const title = $el.find('a[href*="/item/"]').last().text().trim() ||
+                        $el.find('.product-name, .product-item-name, a.product-item-link, h2, h3').first().text().trim();
           if (!title || title.length < 5) return;
 
-          const priceText = $el.find('.price, .price-wrapper, [class*="price"]').first().text().trim();
+          const priceText = $el.find('.sale-price, .price, .price-wrapper, [class*="price"]').first().text().trim();
           const price = parseCADPrice(priceText);
           if (!price || price < 15) return;
 
-          const link = $el.find('a[href*=".html"], a[href*="dellrefurbished.ca"]').first().attr('href') || '';
+          const link = $el.find('a[href*="/item/"], a[href*=".html"], a[href*="dellrefurbished.ca"]').first().attr('href') || '';
           const fullUrl = cleanProductUrl(link, link.startsWith('http') ? link : `https://www.dellrefurbished.ca${link}`);
 
-          const condition = $el.find('.grade, [class*="grade"], .condition').first().text().trim() || 'Grade A / Reconditionné';
+          const gradeMatch = $el.text().match(/Grade\s+[A-C]/i);
+          const condition = gradeMatch ? gradeMatch[0].replace(/\s+/g, ' ') : ($el.find('.grade, [class*="grade"], .condition').first().text().trim() || 'Grade A Reconditionné');
 
           idx++;
           listings.push({

@@ -57,43 +57,91 @@ async function tier1Direct(model: string, log: LogFn): Promise<ScrapedListing[] 
       const listings: ScrapedListing[] = [];
       let idx = 0;
 
-      $('.item-cell, [class*="item-cell"], .item-container').each((_i, el) => {
-        try {
-          const $el = $(el);
-          const title = $el.find('.item-title, [class*="item-title"]').first().text().trim();
-          if (!title || title.length < 5) return;
+      // 1. Extraction haute fidélité via l'état JSON initial embarqué (React SSR)
+      $('script').each((_i, el) => {
+        const text = $(el).html() || '';
+        if (text.startsWith('window.__initialState__ = {')) {
+          try {
+            const clean = text.replace('window.__initialState__ = ', '').trim();
+            const json = JSON.parse(clean);
+            const products = json?.Products || [];
+            for (const p of products) {
+              const cell = p.ItemCell;
+              const title = cell?.Description?.Title || cell?.Description?.ProductName || p.Description?.Title || '';
+              const price = typeof cell?.FinalPrice === 'number' ? cell.FinalPrice : parseFloat(cell?.FinalPrice || '0');
+              const itemNumber = cell?.Item || '';
+              if (!title || !price || isNaN(price) || price < 15 || !itemNumber) continue;
 
-          const priceText = $el.find('.price-current, [class*="price-current"]').first().text().trim();
-          const price = parseCADPrice(priceText);
-          if (!price || price < 15) return;
+              const fullUrl = `https://www.newegg.ca/p/${itemNumber}`;
+              const titleLower = title.toLowerCase();
+              const isOutlier = titleLower.includes('case') || titleLower.includes('étui') ||
+                titleLower.includes('charger') || titleLower.includes('cable') || titleLower.includes('adapter');
 
-          const link = $el.find('a.item-title, a[href*="/p/"]').first().attr('href') || '';
-          if (!link) return;
-          const fullUrl = cleanProductUrl(link, link.startsWith('http') ? link : `https://www.newegg.ca${link}`);
+              const isRefurb = cell?.Feature?.IsRefurbished || p.Feature?.IsRefurbished;
+              const isOpenBox = cell?.Feature?.IsOpenBoxed || p.Feature?.IsOpenBoxed;
 
-          const titleLower = title.toLowerCase();
-          const isOutlier = titleLower.includes('case') || titleLower.includes('étui') ||
-            titleLower.includes('charger') || titleLower.includes('cable') || titleLower.includes('adapter');
-
-          idx++;
-          listings.push({
-            id: `newegg-${idx}-${randomHex(4)}`,
-            title,
-            price,
-            source: SOURCE,
-            sourceKey: SOURCE_KEY,
-            date: new Date().toISOString(),
-            url: fullUrl,
-            included: !isOutlier,
-            isOutlier,
-            isSimulated: false,
-            condition: 'Reconditionné',
-            saleType: 'fixed',
-          });
-        } catch {
-          // Ignorer
+              idx++;
+              listings.push({
+                id: `newegg-${idx}-${randomHex(4)}`,
+                title,
+                price: Math.round(price * 100) / 100,
+                source: SOURCE,
+                sourceKey: SOURCE_KEY,
+                date: new Date().toISOString(),
+                url: fullUrl,
+                included: !isOutlier,
+                isOutlier,
+                isSimulated: false,
+                condition: isRefurb ? 'Reconditionné' : (isOpenBox ? 'Boîte ouverte' : 'Usagé'),
+                saleType: 'fixed',
+              });
+            }
+          } catch {
+            // Ignorer l'erreur de parsing JSON et continuer sur le DOM
+          }
         }
       });
+
+      // 2. Extraction de secours par sélecteurs DOM si le JSON n'a rien retourné
+      if (listings.length === 0) {
+        $('.item-cell, [class*="item-cell"], .item-container').each((_i, el) => {
+          try {
+            const $el = $(el);
+            const title = $el.find('.item-title, [class*="item-title"]').first().text().trim();
+            if (!title || title.length < 5) return;
+
+            const priceText = $el.find('.price-current, [class*="price-current"]').first().text().trim();
+            const price = parseCADPrice(priceText);
+            if (!price || price < 15) return;
+
+            const link = $el.find('a.item-title, a[href*="/p/"]').first().attr('href') || '';
+            if (!link) return;
+            const fullUrl = cleanProductUrl(link, link.startsWith('http') ? link : `https://www.newegg.ca${link}`);
+
+            const titleLower = title.toLowerCase();
+            const isOutlier = titleLower.includes('case') || titleLower.includes('étui') ||
+              titleLower.includes('charger') || titleLower.includes('cable') || titleLower.includes('adapter');
+
+            idx++;
+            listings.push({
+              id: `newegg-${idx}-${randomHex(4)}`,
+              title,
+              price,
+              source: SOURCE,
+              sourceKey: SOURCE_KEY,
+              date: new Date().toISOString(),
+              url: fullUrl,
+              included: !isOutlier,
+              isOutlier,
+              isSimulated: false,
+              condition: 'Reconditionné',
+              saleType: 'fixed',
+            });
+          } catch {
+            // Ignorer
+          }
+        });
+      }
 
       if (listings.length > 0) {
         log(`✔️ [${SOURCE_KEY}] Tier 1: ${listings.length} produits reconditionnés trouvés`);

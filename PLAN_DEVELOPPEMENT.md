@@ -134,8 +134,9 @@ flowchart TD
     M5["Jalon 5 : Modularisation de server.ts et ModelDetail.tsx"]
     M6["Jalon 6 : Migration ExcelJS et résolution finale des vulnérabilités npm"]
     M7["Jalon 7 (Terminé) : Packaging exécutable portable, arrêt gracieux & validation E2E"]
+    M8["Jalon 8 (Terminé) : Audit & Durcissement du Système de Mise à Jour (v1.5.0)"]
 
-    M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7
+    M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7 --> M8
 ```
 
 ### Critères d'acceptation pour chaque jalon :
@@ -174,4 +175,12 @@ flowchart TD
   - **Arrêt Gracieux & Nettoyage Chromium** : Service de cycle de vie (`server/services/lifecycle.service.ts`) capturant `SIGINT`, `SIGTERM` et `SIGHUP`, fermant proprement le serveur HTTP, exécutant le checkpoint WAL SQLite et tuant de manière ciblée toute arborescence Chromium orpheline sur Windows.
   - **Régulation PC Modestes** : Détection dynamique des cœurs CPU (`os.cpus().length <= 4`) pour adapter automatiquement la concurrence par défaut à 1 ou 2 flux simultanés sans saturer la machine d'atelier.
   - **Validation Métier E2E** : Suite de tests d'intégration complète (`tests/e2e-business-lifecycle.test.ts` et `tests/portable-packaging.test.ts`), portant à **82 tests Vitest au vert** sur 9 fichiers de test, avec contrôle TypeScript `tsc --noEmit` et compilation de production `npm run build` réussis.
+- [x] **Jalon 8 (Complet - Release v1.5.0) :**
+  - **Protection Anti-SSRF & Sécurité des URLs** (`server/services/update.service.ts`) : L'endpoint `/api/perform-update` restreint formellement les téléchargements au dépôt officiel GitHub (`Bountam/evaluateur-de-prix`). Chaque redirection HTTP est vérifiée contre les hôtes CDN officiels de GitHub.
+  - **Sanctuarisation Intégrale des Données (Garantie Zéro-Perte)** : Exclusion absolue de `data/`, `database.sqlite`, `data/backups/`, `db.json`, `.env*`, `logs/`, `exports/` et des fichiers de verrous. Double barrière : nettoyage applicatif (`stripProtectedEntries`) et exclusion Robocopy (`/XD`, `/XF`).
+  - **Sécurité des Packages Portables** : Blocage préventif des archives sources si `evaluateur-insertech-portable.zip` n'est pas encore disponible sur la release GitHub, avec alerte claire et lien direct.
+  - **Robustesse SemVer** : Gestion robuste des préfixes `v`/`V`, des métadonnées de build et des pré-versions (`-beta`, `-rc`) sans comparaison `NaN`.
+  - **Gestion Sécurisée des Processus Windows** : Élimination définitive de `taskkill /f /im node.exe`, ciblage strict du PID de l'application via `.server.pid`, attente active de libération des verrous Windows et relance invisible via VBScript (`relaunch_server.vbs`).
+  - **UX Client Moderne (`UpdateModal.tsx`)** : Sondage de reconnexion automatique (`/api/version`) avec compte à rebours de 60 secondes et rechargement fluide dès reconnexion.
+  - **Validation & Non-Régression** : 23 nouveaux tests unitaires et d'intégration (`tests/update-service.test.ts`), portant la suite complète à **105 tests Vitest au vert** sur 10 fichiers de test, avec contrôle TypeScript et compilation de production réussis.
 

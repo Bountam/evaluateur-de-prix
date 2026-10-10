@@ -116,66 +116,76 @@ npm run build:executable   # Génère le dossier 'evaluateur-insertech-portable'
 
 ---
 
+## 🧪 Tests & Qualité de Code
+
+```bash
+npm test        # Exécute la suite complète de 105 tests unitaires et d'intégration Vitest
+npm run lint    # Contrôle strict des types TypeScript (tsc --noEmit)
+npm run build   # Validation de compilation et génération des bundles de production
+```
+
+---
+
 ## 📂 Structure du Projet
 
 ```
 évaluateur-de-prix-insertech/
-├── server.ts               # Serveur Express principal (API REST + routes export)
-├── index.html              # Point d'entrée Vite
-├── vite.config.ts          # Configuration Vite
-├── tsconfig.json           # Configuration TypeScript
-├── package.json            # Scripts de build et dépendances
-├── .env.example            # Modèle de variables d'environnement
+├── server.ts                   # Point d'entrée serveur (délègue à server/)
+├── server/                     # Architecture modulaire du backend
+│   ├── config/                 # Constantes, variables d'environnement, version dynamique
+│   ├── database/               # Persistance SQLite WAL & verrous atomiques (withDBLock)
+│   ├── middlewares/            # Journalisation Winston, compression, sécurité Helmet, rate-limit
+│   ├── routes/                 # Routes REST modulaires (scraping, excel, system, etc.)
+│   └── services/               # Services métier (excel.service, lifecycle.service, update.service, healing.service)
 │
-├── src/                    # Frontend React
-│   ├── App.tsx             # Gestionnaire d'état principal + routes API clientes
-│   ├── types.ts            # Interfaces TypeScript partagées
-│   ├── modelsData.ts       # Catalogue maître des modèles par catégorie
-│   ├── index.css           # Styles globaux + thème light/dark
+├── index.html                  # Point d'entrée Vite
+├── vite.config.ts              # Configuration Vite + proxy API
+├── tsconfig.json               # Configuration TypeScript
+├── package.json                # Scripts de build, packaging et dépendances (0 vulnérabilité npm)
+├── .env.example                # Modèle de variables d'environnement
+│
+├── src/                        # Frontend React 19 + Tailwind
+│   ├── App.tsx                 # Gestionnaire d'état principal + synchronisation API
+│   ├── types.ts                # Interfaces TypeScript partagées
+│   ├── modelsData.ts           # Catalogue maître des modèles par catégorie
+│   ├── index.css               # Styles globaux + thème sombre/clair
 │   └── components/
-│       ├── ModelDetail.tsx     # Fiche de modèle + journal de diagnostic
+│       ├── model-detail/       # Fiche de modèle décomposée (Header, Stats, Table, Sparkline, Monitor, Filters)
+│       ├── UpdateModal.tsx     # Gestionnaire de mise à jour sécurisée & reconnexion automatique
 │       ├── Sidebar.tsx         # Navigation latérale (modèles par marque)
-│       ├── SyntheseTab.tsx     # Tableau de bord synthèse global
-│       ├── SourcesTab.tsx      # Statut des 16 sources de données
+│       ├── SyntheseTab.tsx     # Tableau de bord de synthèse globale
+│       ├── SourcesTab.tsx      # Statut en direct des 16 sources de données
 │       ├── GcsurplusTab.tsx    # Tableau des lots GCSurplus
 │       ├── HistoriqueTab.tsx   # Journal d'audit comptable
 │       ├── EcartsTab.tsx       # Analyse des écarts de prix
-│       ├── ExportPanel.tsx     # Panneau de génération du rapport Excel
-│       ├── ConfigPanel.tsx     # Configuration de l'application
-│       ├── AddModelModal.tsx   # Ajout de modèle personnalisé
-│       └── Logo.tsx            # Logo Insertech
+│       ├── ExportPanel.tsx     # Panneau d'exportation Excel maître (ExcelJS)
+│       ├── ConfigPanel.tsx     # Configuration et clés d'API
+│       ├── AddModelModal.tsx   # Ajout de modèles personnalisés
+│       └── Logo.tsx            # Logo officiel Insertech
 │
-├── scrapers/               # Moteur de scraping multi-sources
-│   ├── orchestrator.ts     # Orchestrateur central (IQR, déduplication, médiane)
-│   ├── types.ts            # Interfaces TypeScript du moteur de scraping
-│   ├── utils.ts            # Parseurs de prix, filtres de pièces, extraction de specs
-│   ├── cache.ts            # Système de cache Tier 3 (par source/modèle)
-│   ├── browser-emulator.ts # Émulation d'en-têtes navigateur & rotation User-Agent
-│   ├── credentials.ts      # Gestion sécurisée des identifiants (GCSurplus, etc.)
-│   ├── ebay-completed.ts   # eBay ventes complétées (prix réels du marché)
-│   ├── ebay-active.ts      # eBay annonces actives
-│   ├── backmarket.ts       # Back Market Canada
-│   ├── reebelo.ts          # Rebeelo
-│   ├── amazon-renewed.ts   # Amazon Renewed Canada
-│   ├── bestbuy.ts          # Best Buy Canada (Marketplace)
-│   ├── newegg.ts           # Newegg Canada (Refurbished)
-│   ├── refurb-io.ts        # Refurb.io Canada
-│   ├── walmart.ts          # Walmart Canada (Restored)
-│   ├── dell.ts             # Dell Refurbished Canada
-│   ├── it-refurbs.ts       # IT Refurbs Canada
-│   ├── canada-computers.ts # Canada Computers (Refurbished)
-│   ├── gcsurplus.ts        # GCSurplus (lots gouvernementaux, session authentifiée)
-│   ├── seao.ts             # SEAO (appels d'offres publics québécois)
-│   ├── insertech-internal.ts  # Stock actuel Insertech
-│   └── insertech-archives.ts  # Archives des analyses antérieures Insertech
+├── scrapers/                   # Moteur de scraping multi-sources (16 connecteurs)
+│   ├── orchestrator.ts         # Orchestrateur central (IQR, déduplication, médiane, régulation CPU)
+│   ├── types.ts                # Interfaces TypeScript du moteur de scraping
+│   ├── utils.ts                # Parseurs de prix CAD, filtres de pièces, extraction de specs
+│   ├── cache.ts                # Système de cache Tier 3 (par source/modèle)
+│   ├── browser-emulator.ts     # Émulation Playwright Stealth & rotation User-Agent
+│   └── [connecteurs]...        # eBay, Back Market, Reebelo, Amazon, Best Buy, GCSurplus, etc.
 │
-├── data/
-│   └── scraper-cache/      # Cache JSON individuel par source/modèle (Tier 3)
+├── tests/                      # Suite de tests Vitest (105 tests au vert)
+│   ├── update-service.test.ts  # Validation anti-SSRF, SemVer, Zip-Slip, sanctuarisation zéro-perte
+│   ├── e2e-business-lifecycle.test.ts # Cycle de vie serveur, arrêt gracieux et règles comptables
+│   ├── excel-service.test.ts   # Aller-retour fidèle ExcelJS sans perte
+│   ├── portable-packaging.test.ts # Scripts de packaging et lanceurs Windows/macOS
+│   └── modular-server.test.ts  # Architecture serveur et persistance SQLite
 │
-├── db.json                 # Base de données locale (évaluations, logs, sources)
-├── metadata.json           # Métadonnées de version
-├── insertech_logo.png      # Logo Insertech
-└── exports/                # Rapports Excel générés (dossier auto-créé, ignoré par Git)
+├── data/                       # Base de données SQLite persistante (WAL mode)
+│   ├── database.sqlite         # Base principale (sanctuarisée lors des mises à jour)
+│   └── backups/                # Sauvegardes rotatives automatiques horodatées
+│
+├── scripts/                    # Scripts d'automatisation
+│   └── build-executable.ts     # Packaging autonome portable zéro-dépendance
+│
+└── evaluateur-insertech-portable.zip # Package distribuable prêt pour l'atelier (~262 Mo)
 ```
 
 ---

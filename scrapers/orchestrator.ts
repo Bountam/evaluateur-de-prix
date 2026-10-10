@@ -265,10 +265,15 @@ export async function orchestrateScraping(
   }
 
   const systemCores = os.cpus()?.length || 4;
-  const defaultConcurrency = Math.max(1, Math.min(3, Math.floor(systemCores / 2)));
+  const isModestMachine = systemCores <= 4;
+  const defaultConcurrency = isModestMachine ? 2 : Math.max(1, Math.min(3, Math.floor(systemCores / 2)));
   const CONCURRENCY_LIMIT = customConcurrency && customConcurrency > 0
     ? Math.min(16, Math.max(1, customConcurrency))
     : (process.env.SCRAPER_CONCURRENCY ? parseInt(process.env.SCRAPER_CONCURRENCY, 10) : defaultConcurrency);
+
+  if (isModestMachine && (!customConcurrency || customConcurrency <= 0)) {
+    log(`💻 [Régulation PC Modeste] Machine à ${systemCores} cœurs détectée -> Concurrence adaptée à ${CONCURRENCY_LIMIT} flux pour préserver la fluidité.`);
+  }
 
   log(`🚀 Démarre la collecte multi-sources pour : "${searchModel}" (${category}) sur ${ALL_SCRAPERS.length} sources (Concurrence configurée : ${CONCURRENCY_LIMIT})`);
 

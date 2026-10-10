@@ -199,6 +199,8 @@ const PART_KEYWORDS = [
   /\btrackpad(?:s)?\b/,
   /\btouchpad(?:s)?\b/,
   /\blcd\s+screen\b/,
+  /\b(?:ecran|écran)(?:s)?\s+lcd\b/,
+  /\b(?:ecran|écran)(?:s)?\s+seul(?:e)?\b/,
   /\bdalle\s+lcd\b/,
   /\breplacement\s+screen\b/,
   /\bpalmrest\b/,
@@ -217,23 +219,24 @@ const PART_KEYWORDS = [
  */
 export function isPartOrAssembly(title: string | undefined | null): boolean {
   if (!title) return false;
-  const t = title.toLowerCase();
+  const rawLower = title.toLowerCase();
+  const unaccented = rawLower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // 1. Détection immédiate si le titre indique que c'est une pièce ou pour pièces
-  if (EXACT_PATTERNS.some(regex => regex.test(t))) {
+  if (EXACT_PATTERNS.some(regex => regex.test(rawLower) || regex.test(unaccented))) {
     return true;
   }
 
   // 2. Détecter si le titre contient des mots-clés d'accessoires ou pièces détachées
-  const hasPartKeyword = PART_KEYWORDS.some(regex => regex.test(t));
+  const hasPartKeyword = PART_KEYWORDS.some(regex => regex.test(rawLower) || regex.test(unaccented));
   if (hasPartKeyword) {
     // Si c'est explicitement relié par des conjonctions de pièces
-    const isAccessoryProduct = /\b(?:pour|for|compatible|replacement|rechange|remplacement|convient|fits?|fit|adapté|de\s+rechange|de\s+remplacement)\b/.test(t);
+    const isAccessoryProduct = /\b(?:pour|for|compatible|replacement|rechange|remplacement|convient|fits?|fit|adapte|adapté|de\s+rechange|de\s+remplacement)\b/.test(unaccented);
     if (isAccessoryProduct) {
       return true;
     }
 
-    const isIncludedMatch = /\b(?:inclus|incluse|inclu|included|includes|with|avec|fourni|livré|neuve|nouvelle|new)\b/.test(t);
+    const isIncludedMatch = /\b(?:inclus|incluse|inclu|included|includes|with|avec|fourni|livre|livré|neuve|nouvelle|new)\b/.test(unaccented);
     if (!isIncludedMatch) {
       return true;
     }

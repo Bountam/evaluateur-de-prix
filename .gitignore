@@ -39,3 +39,6 @@ data/*.sqlite*
 data/backups/
 logs/
 *.bak
+.server.*
+*.pid
+*.port

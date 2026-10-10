@@ -30,4 +30,7 @@ jobs:
       run: npx tsc --noEmit
       
     - name: Run Unit Tests
-      run: npx vitest run
+      run: npm test
+      
+    - name: Build Production Bundle
+      run: npm run build

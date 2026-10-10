@@ -3,6 +3,63 @@ export interface CategoryModels {
   models: string[];
 }
 
+// Normalisation intelligente des noms de catégories
+export function normalizeCategory(category: string | undefined | null): string {
+  if (!category) return "Portables Lenovo";
+  const c = category.trim();
+  const cLower = c.toLowerCase();
+
+  const canonical = [
+    "Portables Lenovo",
+    "Portables Dell",
+    "Portables Dell XPS",
+    "Portables HP",
+    "Apple",
+    "Desktop Lenovo",
+    "Desktop Dell",
+    "Desktop HP",
+    "iPhones"
+  ];
+  const exact = canonical.find(cat => cat.toLowerCase() === cLower);
+  if (exact) return exact;
+
+  if (cLower.includes("iphone") || cLower.includes("téléphone") || cLower.includes("telephone") || cLower.includes("smartphone")) {
+    return "iPhones";
+  }
+  if (cLower.includes("apple") || cLower.includes("macbook")) {
+    return "Apple";
+  }
+  if (cLower.includes("xps")) {
+    return "Portables Dell XPS";
+  }
+  if (cLower.includes("dell") && (cLower.includes("portable") || cLower.includes("latitude") || cLower.includes("precision"))) {
+    return "Portables Dell";
+  }
+  if (cLower.includes("dell") && (cLower.includes("desktop") || cLower.includes("bureau") || cLower.includes("optiplex") || cLower.includes("tour"))) {
+    return "Desktop Dell";
+  }
+  if (cLower.includes("hp") && (cLower.includes("portable") || cLower.includes("elitebook") || cLower.includes("probook"))) {
+    return "Portables HP";
+  }
+  if (cLower.includes("hp") && (cLower.includes("desktop") || cLower.includes("bureau") || cLower.includes("elitedesk") || cLower.includes("prodesk") || cLower.includes("tour"))) {
+    return "Desktop HP";
+  }
+  if (cLower.includes("lenovo") && (cLower.includes("desktop") || cLower.includes("bureau") || cLower.includes("thinkcentre") || cLower.includes("tour"))) {
+    return "Desktop Lenovo";
+  }
+  if (cLower.includes("lenovo") || cLower.includes("thinkpad")) {
+    return "Portables Lenovo";
+  }
+  if (cLower.includes("desktop") || cLower.includes("bureau") || cLower.includes("tour")) {
+    return "Desktop Lenovo";
+  }
+  if (cLower.includes("portable") || cLower.includes("laptop")) {
+    return "Portables Lenovo";
+  }
+
+  return c;
+}
+
 export const MASTER_LIST_MODELS: CategoryModels[] = [
   {
     categoryName: "Portables Lenovo",

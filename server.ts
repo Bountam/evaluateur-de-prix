@@ -14,6 +14,8 @@ import { clearAllCache, clearCacheForModel, clearCacheForSource } from "./scrape
 import AdmZip from "adm-zip";
 import { DatabaseSync } from "node:sqlite";
 import type { AppState, ModelEvaluation, ComparableListing, DataSource, SiteSelectors, SelfHealingStatus, HistoricalLogEntry } from "./src/types.ts";
+import { MASTER_LIST_MODELS, normalizeCategory } from "./src/modelsData.ts";
+export { normalizeCategory };
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
@@ -30,6 +32,13 @@ const __dirname = path.dirname(__filename);
 const PORT = 3000;
 const DB_PATH = path.join(process.cwd(), "db.json");
 const SQLITE_PATH = path.join(process.cwd(), "data", "database.sqlite");
+
+// Ensemble normalisé en minuscules de tous les modèles officiels
+const STANDARD_MODEL_NAMES = new Set<string>();
+MASTER_LIST_MODELS.forEach(cat => {
+  cat.models.forEach(m => STANDARD_MODEL_NAMES.add(m.toLowerCase().trim()));
+});
+
 
 interface ScrapingJob {
   model: string;
@@ -645,65 +654,59 @@ async function startServer() {
     }
 
     const cleanModel = modelName.trim();
+    const normalizedCategory = normalizeCategory(category);
     let dbResult: any = null;
 
     await withDBLock(async () => {
       const db = readDB();
       if (!db.customModels) db.customModels = [];
+      if (!db.evaluations) db.evaluations = {};
 
-      // Check duplicate
-      const exists = db.customModels.some((m: any) => m.modelName.toLowerCase() === cleanModel.toLowerCase());
-      if (!exists) {
+      // Check duplicate or update category
+      const existingCustom = db.customModels.find((m: any) => m.modelName.toLowerCase() === cleanModel.toLowerCase());
+      if (!existingCustom) {
         db.customModels.push({
-          category,
+          category: normalizedCategory,
           modelName: cleanModel,
           configuration: configuration || "",
           addedAt: new Date().toISOString()
         });
-
-        // Also create an empty initial evaluation entry so it exists cleanly right away
-        if (!db.evaluations) db.evaluations = {};
-        if (!db.evaluations[cleanModel]) {
-          db.evaluations[cleanModel] = {
-            modelName: cleanModel,
-            category,
-            medianPrice: 0,
-            confidence: "Aucun",
-            comparablesCount: 0,
-            lastScraped: null,
-            listings: [],
-            configuration: configuration || "Spécifications standard à valider",
-            condition: "Très bon",
-            commentaires: `Modèle ajouté dynamiquement à la catégorie ${category}. Prêt pour la collecte.`,
-            historicalPrices: []
-          };
-        }
-
-        writeDB(db);
-
-        // Try to append or update src/modelsData.ts if running in dev so source code stays synced
-        try {
-          const modelsDataPath = path.join(process.cwd(), "src", "modelsData.ts");
-          if (fs.existsSync(modelsDataPath)) {
-            let code = fs.readFileSync(modelsDataPath, "utf-8");
-            const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const catPattern = new RegExp(`(categoryName:\\s*"${escapeRegExp(category)}",\\s*models:\\s*\\[)([^\\]]*)(\\])`, "s");
-            const match = code.match(catPattern);
-            if (match && !match[2].includes(`"${cleanModel}"`)) {
-              const trimmed = match[2].trimRight();
-              const updatedArray = `${match[1]}${trimmed ? trimmed + ",\n      " : "\n      "}"${cleanModel}"\n    ${match[3]}`;
-              code = code.replace(catPattern, updatedArray);
-              fs.writeFileSync(modelsDataPath, code, "utf-8");
-            }
-          }
-        } catch (err) {
-          console.warn("Could not sync modelsData.ts on disk:", err);
-        }
+      } else {
+        existingCustom.category = normalizedCategory;
+        if (configuration) existingCustom.configuration = configuration;
       }
+
+      // Guarantee an initial evaluation entry exists right away
+      if (!db.evaluations[cleanModel]) {
+        db.evaluations[cleanModel] = {
+          modelName: cleanModel,
+          category: normalizedCategory,
+          medianPrice: 0,
+          confidence: "Aucun",
+          comparablesCount: 0,
+          lastScraped: "",
+          listings: [],
+          configuration: configuration || "Spécifications standard à valider",
+          condition: "Très bon",
+          commentaires: `Modèle ajouté dynamiquement à la catégorie ${normalizedCategory}. Prêt pour la collecte.`,
+          historicalPrices: []
+        };
+      } else {
+        db.evaluations[cleanModel].category = normalizedCategory;
+        if (configuration) db.evaluations[cleanModel].configuration = configuration;
+      }
+
+      writeDB(db);
+      cachedStateHash = null; // Invalider le hash de cache export pour forcer la regénération
       dbResult = db;
     });
 
-    res.json({ success: true, customModels: dbResult.customModels, evaluations: dbResult.evaluations, evaluation: dbResult.evaluations[cleanModel] });
+    res.json({
+      success: true,
+      customModels: dbResult.customModels,
+      evaluations: dbResult.evaluations,
+      evaluation: dbResult.evaluations[cleanModel]
+    });
   });
 
   // Reset database to pristine empty state for testing
@@ -1507,14 +1510,19 @@ del "%~f0"
               historicalPrices: mergedHP
             };
 
-            const existsInCustom = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === modelName.toLowerCase());
-            if (!existsInCustom) {
-              db.customModels.push({
-                category: categoryName,
-                modelName,
-                addedAt: new Date().toISOString(),
-                configuration: latestRow["Configuration"] || ""
-              });
+            const isStandardModel = STANDARD_MODEL_NAMES.has(modelName.toLowerCase().trim());
+            if (!isStandardModel) {
+              const normCat = normalizeCategory(categoryName);
+              const existsInCustom = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === modelName.toLowerCase().trim());
+              if (!existsInCustom) {
+                db.customModels.push({
+                  category: normCat,
+                  modelName: modelName.trim(),
+                  addedAt: new Date().toISOString(),
+                  configuration: latestRow["Configuration"] || ""
+                });
+                importedCustomCount++;
+              }
             }
 
             importedModelsSet.add(modelName.toLowerCase());
@@ -1637,7 +1645,8 @@ del "%~f0"
               const rows = XLSX.utils.sheet_to_json(sheet) as any[];
               rows.forEach(r => {
                 const model = r["Modèle"] || r["Modele"] || r["Model"];
-                const category = r["Catégorie"] || r["Categorie"] || "Portables Lenovo";
+                const rawCategory = r["Catégorie"] || r["Categorie"] || "Portables Lenovo";
+                const category = normalizeCategory(rawCategory);
                 const addedAt = r["Date d'ajout"] || r["Date"] || new Date().toISOString();
                 const configuration = r["Configuration"] || r["Specs"] || "";
                 if (model && typeof model === "string" && model.trim()) {
@@ -1652,6 +1661,24 @@ del "%~f0"
                     });
                     importedCustomCount++;
                   }
+
+                  // S'assurer qu'une évaluation prête à l'affichage existe toujours
+                  if (!db.evaluations[cleanModel]) {
+                    db.evaluations[cleanModel] = {
+                      modelName: cleanModel,
+                      category,
+                      medianPrice: 0,
+                      comparablesCount: 0,
+                      confidence: "Aucun",
+                      lastScraped: "",
+                      configuration: configuration || "Spécifications d'origine",
+                      condition: "Très bon",
+                      commentaires: `Modèle personnalisé restauré depuis l'export Excel (${sheetName}).`,
+                      listings: [],
+                      historicalPrices: []
+                    };
+                  }
+                  importedModelsSet.add(cleanModel.toLowerCase());
                 }
               });
             }
@@ -1755,6 +1782,44 @@ del "%~f0"
   // Helper pour générer l'export Excel 100% exhaustif et ré-importable
   function generateMasterExcel(targetPath?: string) {
     const db = readDB();
+    if (!db.customModels) db.customModels = [];
+    if (!db.evaluations) db.evaluations = {};
+
+    // 1. Garantir que TOUS les modèles personnalisés ont une fiche d'évaluation pour l'export
+    db.customModels.forEach((cm: any) => {
+      if (!db.evaluations[cm.modelName]) {
+        db.evaluations[cm.modelName] = {
+          modelName: cm.modelName,
+          category: normalizeCategory(cm.category),
+          medianPrice: 0,
+          confidence: "Aucun",
+          comparablesCount: 0,
+          lastScraped: "",
+          listings: [],
+          configuration: cm.configuration || "Spécifications standard à valider",
+          condition: "Très bon",
+          commentaires: "Modèle personnalisé ajouté manuellement.",
+          historicalPrices: []
+        };
+      }
+    });
+
+    // 2. Garantir que tout modèle non-standard présent dans les évaluations est aussi répertorié dans les modèles personnalisés
+    Object.keys(db.evaluations).forEach(modelName => {
+      const cleanModel = modelName.trim();
+      if (!STANDARD_MODEL_NAMES.has(cleanModel.toLowerCase())) {
+        const exists = db.customModels.some((cm: any) => cm.modelName.toLowerCase() === cleanModel.toLowerCase());
+        if (!exists) {
+          db.customModels.push({
+            category: normalizeCategory(db.evaluations[modelName].category),
+            modelName: cleanModel,
+            addedAt: new Date().toISOString(),
+            configuration: db.evaluations[modelName].configuration || ""
+          });
+        }
+      }
+    });
+
     const dbStr = JSON.stringify(db.evaluations || {});
     const currentHash = crypto.createHash('md5').update(dbStr).digest('hex');
 
@@ -1907,9 +1972,9 @@ del "%~f0"
     const customModels = db.customModels || [];
     const customModelsRows = customModels.map((cm: any) => ({
       "Modèle": cm.modelName,
-      "Catégorie": cm.category,
+      "Catégorie": normalizeCategory(cm.category),
       "Date d'ajout": cm.addedAt || todayStr,
-      "Configuration": cm.configuration || ""
+      "Configuration": cm.configuration || (db.evaluations[cm.modelName]?.configuration || "")
     }));
 
     // 7. Lots GCSurplus (si présents)

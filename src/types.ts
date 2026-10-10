@@ -159,4 +159,5 @@ export interface AppState {
   historicalLog: HistoricalLogEntry[];
   exportPath?: string;
   customModels?: { category: string; modelName: string; addedAt?: string; configuration?: string }[];
+  credentials?: Record<string, string>;
 }

@@ -146,9 +146,12 @@ flowchart TD
 - [x] **Jalons 2 à 4 (Complets) :**
   - Les 16 scrapers ont été audités individuellement, fiabilisés, testés avec succès et vérifiés en orchestration de bout en bout en moins de 10 secondes.
   - Résilience garantie pour les ordinateurs plus faibles (Playwright sans conflit de verrous Windows, got-scraping ultra-rapide sur APIs/SSR, cascades propres sans freeze vers les Tiers 2/3).
-- [ ] **Jalon 5 :**
-  - `server.ts` décomposé en modules de moins de 300 lignes chacun.
-  - Tests unitaires et d'API de bout en bout maintenus.
+- [x] **Jalon 5.1 (Complet) :**
+  - `server.ts` décomposé de 2471 lignes à un point d'entrée modulaire de 9 lignes réexportant l'architecture structurée `server/`.
+  - Modules dédiés : `config/`, `database/` (SQLite WAL mode), `services/` (Scraping, Excel, Update, Healing), `middlewares/`, `routes/`.
+  - 39 tests unitaires et d'intégration Vitest au vert, validation `tsc --noEmit` et compilation de production `npm run build` réussies.
+- [ ] **Jalon 5.2 :**
+  - Découpage du composant `ModelDetail.tsx` (~1680 lignes) en sous-composants ciblés.
 - [ ] **Jalon 6 :**
   - `npm audit` retourne 0 vulnérabilité.
   - Export et import Excel 100% fidèles au modèle réglementaire d'Insertech.

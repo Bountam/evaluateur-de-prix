@@ -18,7 +18,7 @@ describe("Bulles d'Aide Contextuelles Interactives (Jalon v1.6.0)", () => {
       "navIphones",
       "navHistorique",
       "navEcarts",
-      "navGcsurplus",
+      "navSettings",
       "navSources",
       // Sidebar
       "modelSearch",

@@ -3,7 +3,6 @@ import Sidebar from "./components/Sidebar";
 import ModelDetail from "./components/ModelDetail";
 import CategoryLayout from "./components/CategoryLayout";
 import ExportPanel from "./components/ExportPanel";
-import GcsurplusTab from "./components/GcsurplusTab";
 import HistoriqueTab from "./components/HistoriqueTab";
 import EcartsTab from "./components/EcartsTab";
 import AddModelModal from "./components/AddModelModal";
@@ -12,30 +11,21 @@ import UpdateModal from "./components/UpdateModal";
 import SessionInitModal from "./components/SessionInitModal";
 import UserSwitchModal from "./components/UserSwitchModal";
 import { MASTER_LIST_MODELS, normalizeCategory } from "./modelsData";
-import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, GcsurplusLot, DataSource, HistoricalLogEntry, OrganizationConfig } from "./types";
+import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, DataSource, HistoricalLogEntry, OrganizationConfig } from "./types";
 import { 
   FileSpreadsheet, 
   Settings, 
-  Database, 
   Clock, 
-  Activity, 
   AlertCircle,
-  HelpCircle,
-  Laptop,
-  Monitor,
-  Smartphone,
-  TrendingUp,
-  User,
-  UserCheck,
-  UserX,
-  ShieldCheck,
-  Sun,
-  Moon,
-  Cpu,
-  Sparkles
+  Laptop, 
+  Monitor, 
+  Smartphone, 
+  TrendingUp, 
+  UserCheck, 
+  Sparkles 
 } from "lucide-react";
 import Logo from "./components/Logo";
-import SourcesTab from "./components/SourcesTab";
+import SettingsTab from "./components/SettingsTab";
 import HelpTooltip from "./components/common/HelpTooltip";
 import { HELP_CONTENT } from "./constants/helpContent";
 
@@ -67,6 +57,8 @@ export default function App() {
   const [healingStatus, setHealingStatus] = useState<Record<string, SelfHealingStatus>>({});
   const [activeTab, setActiveTab] = useState<string>(() => {
     const saved = getStoredValue("activeTab");
+    if (saved === "gcsurplus") return "portables";
+    if (saved === "sources") return "settings";
     return saved && saved !== "synthese" ? saved : "portables";
   });
   const [organization, setOrganization] = useState<OrganizationConfig>({ name: "", logoUrl: "", tagline: "" });
@@ -85,7 +77,6 @@ export default function App() {
   const scrapingLogs = scrapingModels[selectedModel]?.logs || [];
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [gcsurplusLots, setGcsurplusLots] = useState<GcsurplusLot[]>([]);
   const [sources, setSources] = useState<DataSource[]>([]);
   const [historicalLog, setHistoricalLog] = useState<HistoricalLogEntry[]>([]);
   const [customModels, setCustomModels] = useState<{ category: string; modelName: string }[]>([]);
@@ -228,7 +219,6 @@ export default function App() {
         setEvaluations(data.evaluations || {});
         setSelectors(data.selectors || null);
         setHealingStatus(data.healingStatus || {});
-        setGcsurplusLots(data.gcsurplusLots || []);
         setSources(data.sources || []);
         setHistoricalLog(data.historicalLog || []);
         setCustomModels(data.customModels || []);
@@ -673,19 +663,6 @@ export default function App() {
 
             <div className="inline-flex items-center space-x-1">
               <button
-                onClick={() => setIsConcurrencyModalOpen(true)}
-                className="inline-flex items-center space-x-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-2.5 py-1 rounded-sm text-amber-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-                id="btn-concurrency-modal"
-                title="Ajuster la concurrence / puissance CPU"
-              >
-                <Cpu className="w-3.5 h-3.5 text-amber-400" />
-                <span>CPU : {concurrency} {concurrency === 1 ? 'SOURCE' : 'SOURCES'}</span>
-              </button>
-              <HelpTooltip topic={HELP_CONTENT.cpuConcurrency} size="xs" side="bottom" id="cpuConcurrency" />
-            </div>
-
-            <div className="inline-flex items-center space-x-1">
-              <button
                 onClick={() => setActiveTab("export")}
                 className={`inline-flex items-center space-x-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 px-2.5 py-1 rounded-sm text-emerald-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold ${
                   activeTab === "export" ? "ring-2 ring-emerald-400" : ""
@@ -697,19 +674,6 @@ export default function App() {
                 <span>EXPORT</span>
               </button>
               <HelpTooltip topic={HELP_CONTENT.excelExport} size="xs" side="bottom" id="excelExport" />
-            </div>
-
-            <div className="inline-flex items-center space-x-1">
-              <button
-                onClick={toggleTheme}
-                className="inline-flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-sm text-white cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-                id="btn-theme-toggle"
-                title="Basculer le thème"
-              >
-                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                <span>{theme === "light" ? "SOMBRE" : "CLAIR"}</span>
-              </button>
-              <HelpTooltip topic={HELP_CONTENT.themeToggle} size="xs" side="bottom" id="themeToggle" />
             </div>
           </div>
         </div>
@@ -812,34 +776,18 @@ export default function App() {
 
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => setActiveTab("gcsurplus")}
+              onClick={() => setActiveTab("settings")}
               className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-                activeTab === "gcsurplus"
+                activeTab === "settings" || activeTab === "sources"
                   ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
                   : "border-transparent text-text-muted hover:text-text-main"
               }`}
-              id="nav-btn-gcsurplus"
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>GCSURPLUS</span>
-            </button>
-            <HelpTooltip topic={HELP_CONTENT.navGcsurplus} size="xs" side="bottom" id="navGcsurplus" />
-          </div>
-
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => setActiveTab("sources")}
-              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-                activeTab === "sources"
-                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                  : "border-transparent text-text-muted hover:text-text-main"
-              }`}
-              id="nav-btn-sources"
+              id="nav-btn-settings"
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>SOURCES & MARQUE</span>
+              <span>PARAMÈTRES</span>
             </button>
-            <HelpTooltip topic={HELP_CONTENT.navSources} size="xs" side="bottom" id="navSources" />
+            <HelpTooltip topic={HELP_CONTENT.navSettings || HELP_CONTENT.navSources} size="xs" side="bottom" id="navSettings" />
           </div>
 
           <div className="flex-1 min-w-4"></div>
@@ -942,18 +890,20 @@ export default function App() {
           <EcartsTab evaluations={evaluations} />
         )}
 
-        {/* GC Surplus Tab */}
-        {activeTab === "gcsurplus" && (
-          <GcsurplusTab lots={gcsurplusLots} organization={organization} />
-        )}
-
-        {/* Sources & Marque Blanche Tab */}
-        {activeTab === "sources" && (
-          <SourcesTab
+        {/* Paramètres Tab (Préférences Système, Thème, CPU, Sources & Marque Blanche) */}
+        {(activeTab === "settings" || activeTab === "sources") && (
+          <SettingsTab
             sources={sources}
             onPurgeAll={handlePurgeAll}
             organization={organization}
             onOrganizationUpdate={setOrganization}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            concurrency={concurrency}
+            onSaveConcurrency={(value) => {
+              setConcurrency(value);
+              setStoredValue("concurrency", value.toString());
+            }}
           />
         )}
 

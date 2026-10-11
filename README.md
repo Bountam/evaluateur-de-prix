@@ -119,7 +119,7 @@ npm run build:executable   # Génère le dossier 'evaluateur-insertech-portable'
 ## 🧪 Tests & Qualité de Code
 
 ```bash
-npm test        # Exécute la suite complète de 105 tests unitaires et d'intégration Vitest
+npm test        # Exécute la suite complète de 128 tests unitaires et d'intégration Vitest
 npm run lint    # Contrôle strict des types TypeScript (tsc --noEmit)
 npm run build   # Validation de compilation et génération des bundles de production
 ```
@@ -154,8 +154,7 @@ npm run build   # Validation de compilation et génération des bundles de produ
 │       ├── UpdateModal.tsx     # Gestionnaire de mise à jour sécurisée & reconnexion automatique
 │       ├── Sidebar.tsx         # Navigation latérale (modèles par marque)
 │       ├── SyntheseTab.tsx     # Tableau de bord de synthèse globale
-│       ├── SourcesTab.tsx      # Statut en direct des 16 sources de données
-│       ├── GcsurplusTab.tsx    # Tableau des lots GCSurplus
+│       ├── SettingsTab.tsx     # Paramètres du système (concurrence CPU, thème, marque blanche, sources)
 │       ├── HistoriqueTab.tsx   # Journal d'audit comptable
 │       ├── EcartsTab.tsx       # Analyse des écarts de prix
 │       ├── ExportPanel.tsx     # Panneau d'exportation Excel maître (ExcelJS)

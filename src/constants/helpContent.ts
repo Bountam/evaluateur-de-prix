@@ -68,6 +68,11 @@ export const HELP_CONTENT = {
     description: "Permet de personnaliser l'identité visuelle (nom d'organisation, logo, slogan) et de gérer les chemins d'accès aux fichiers du catalogue interne et archives d'atelier.",
     tips: "Vous pouvez également y réinitialiser le cache temporaire des collectes."
   },
+  navSettings: {
+    title: "Paramètres du Système, Affichage & Sources",
+    description: "Permet de configurer la puissance de calcul CPU (concurrence des scrapers), de choisir le thème visuel (clair ou sombre), de personnaliser l'identité d'organisation (marque blanche) et de gérer les sources de données.",
+    tips: "Toutes vos préférences et modifications d'image de marque sont conservées automatiquement."
+  },
 
   // --- Volet Latéral & Recherche ---
   modelSearch: {

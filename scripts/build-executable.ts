@@ -171,20 +171,24 @@ if (fs.existsSync(localChromium) && fs.readdirSync(localChromium).length > 0) {
   }
 }
 
-// 4. Compiler le lanceur natif Windows C# avec icône intégrée
-console.log('🎨 4/4 - Compilation du lanceur natif avec icône intégrée...');
+// 4. Compiler le lanceur natif Windows C# avec icône intégrée et manifeste non-admin
+console.log('🎨 4/4 - Compilation du lanceur natif avec icône intégrée et manifeste non-admin...');
 const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
 const launcherSource = path.join(ROOT_DIR, 'launcher', 'Launcher.cs');
 const iconPath = path.join(ROOT_DIR, 'assets', 'icon', 'app.ico');
+const manifestPath = path.join(ROOT_DIR, 'launcher', 'app.manifest');
 const targetExe = path.join(PORTABLE_DIR, 'Évaluateur Insertech.exe');
 
 if (fs.existsSync(cscPath) && fs.existsSync(launcherSource) && fs.existsSync(iconPath)) {
   try {
-    execSync(
-      `"${cscPath}" /target:winexe /win32icon:"${iconPath}" /out:"${targetExe}" "${launcherSource}"`,
-      { cwd: ROOT_DIR, stdio: 'inherit' }
-    );
-    console.log(`✨ Exécutable natif compilé avec succès : ${targetExe}`);
+    let cscCmd = `"${cscPath}" /target:winexe /win32icon:"${iconPath}"`;
+    if (fs.existsSync(manifestPath)) {
+      cscCmd += ` /win32manifest:"${manifestPath}"`;
+    }
+    cscCmd += ` /out:"${targetExe}" "${launcherSource}"`;
+
+    execSync(cscCmd, { cwd: ROOT_DIR, stdio: 'inherit' });
+    console.log(`✨ Exécutable natif compilé avec succès (avec manifeste asInvoker) : ${targetExe}`);
   } catch (err: any) {
     console.error('❌ Échec de la compilation du lanceur C# :', err?.message || err);
     process.exit(1);

@@ -259,7 +259,7 @@ namespace EvaluateurInsertech
                     string profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"EvaluateurInsertech\browser-profile");
                     ProcessStartInfo psiEdge = new ProcessStartInfo();
                     psiEdge.FileName = edgePath;
-                    psiEdge.Arguments = "--app=\"" + targetUrl + "\" --disable-http-cache --disk-cache-size=1 --user-data-dir=\"" + profileDir + "\"";
+                    psiEdge.Arguments = "--app=\"" + targetUrl + "\" --disable-http-cache --disk-cache-size=1 --user-data-dir=\"" + profileDir + "\" --no-first-run --no-default-browser-check";
                     psiEdge.UseShellExecute = false;
                     try
                     {

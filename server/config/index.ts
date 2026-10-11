@@ -8,7 +8,7 @@ import { MASTER_LIST_MODELS } from "../../src/modelsData.ts";
 dotenv.config();
 
 export const PORT = Number(process.env.PORT) || 3000;
-export const HOST = process.env.HOST || "127.0.0.1";
+export const HOST = process.env.NODE_ENV === "production" ? "127.0.0.1" : (process.env.HOST || "127.0.0.1");
 
 export const PROJECT_ROOT = process.cwd();
 export const DB_PATH = path.join(PROJECT_ROOT, "db.json");

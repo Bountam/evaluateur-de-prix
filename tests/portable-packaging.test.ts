@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
-import { PID_FILE, PORT_FILE } from "../server/config/index.ts";
+import { PID_FILE, PORT_FILE, HOST } from "../server/config/index.ts";
 
 describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", () => {
   it("exporte les chemins de verrouillage PID_FILE et PORT_FILE dans la configuration", () => {
@@ -25,10 +25,11 @@ describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", 
     // Vérifier l'encapsulation dans app/
     expect(scriptContent).toContain("const APP_DIR = path.join(PORTABLE_DIR, 'app')");
 
-    // Vérifier la compilation C# du lanceur natif avec icône intégrée
+    // Vérifier la compilation C# du lanceur natif avec icône intégrée et manifeste
     expect(scriptContent).toContain("csc.exe");
     expect(scriptContent).toContain("Évaluateur Insertech.exe");
     expect(scriptContent).toContain("/win32icon");
+    expect(scriptContent).toContain("/win32manifest");
 
     // Vérifier le retrait des lanceurs obsolètes Linux et macOS
     expect(scriptContent).not.toContain("Démarrer-Insertech-macOS.command");
@@ -57,5 +58,33 @@ describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", 
     // Aucun kill aveugle de tous les processus node.exe
     expect(launcherContent).not.toContain("taskkill /f /im node.exe");
     expect(launcherContent).not.toContain("taskkill /im node.exe");
+  });
+
+  it("garantit l'absence totale de demande de permissions administrateur (UAC asInvoker)", () => {
+    const manifestPath = path.join(process.cwd(), "launcher", "app.manifest");
+    expect(fs.existsSync(manifestPath)).toBe(true);
+
+    const manifestContent = fs.readFileSync(manifestPath, "utf-8");
+    expect(manifestContent).toContain('requestedExecutionLevel level="asInvoker" uiAccess="false"');
+    expect(manifestContent).not.toContain('level="requireAdministrator"');
+    expect(manifestContent).not.toContain('level="highestAvailable"');
+  });
+
+  it("garantit l'absence totale d'alerte de pare-feu Windows (bouclage strict 127.0.0.1 et isolation Chromium)", () => {
+    // 1. HOST par défaut est strictement 127.0.0.1
+    expect(HOST).toBe("127.0.0.1");
+
+    // 2. server/index.ts verrouille effectiveHost sur 127.0.0.1
+    const serverIndexPath = path.join(process.cwd(), "server", "index.ts");
+    const serverContent = fs.readFileSync(serverIndexPath, "utf-8");
+    expect(serverContent).toContain('"127.0.0.1"');
+    expect(serverContent).not.toContain('if (host === "0.0.0.0")');
+
+    // 3. Chromium browser-emulator est isolé de toute découverte réseau LAN / mDNS
+    const browserEmulatorPath = path.join(process.cwd(), "scrapers", "browser-emulator.ts");
+    const emulatorContent = fs.readFileSync(browserEmulatorPath, "utf-8");
+    expect(emulatorContent).toContain("--disable-background-networking");
+    expect(emulatorContent).toContain("--webrtc-ip-handling-policy=disable_non_proxied_udp");
+    expect(emulatorContent).toContain("MediaRouter");
   });
 });

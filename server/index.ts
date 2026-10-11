@@ -121,30 +121,18 @@ export async function createApp() {
 }
 
 export function listenOnAvailablePort(app: express.Express, port: number, host = HOST) {
-  const server = app.listen(port, host, () => {
+  // En mode production / portable, verrouiller strictement sur 127.0.0.1 (Loopback exclusif)
+  // pour garantir ZÉRO invite du pare-feu Windows et un fonctionnement 100% sans privilèges administrateur
+  const effectiveHost = (process.env.NODE_ENV === "production" || !host || host === "0.0.0.0")
+    ? "127.0.0.1"
+    : host;
+
+  const server = app.listen(port, effectiveHost, () => {
     console.log(`\n=============================================================`);
     console.log(`🚀 SERVEUR ÉVALUATEUR INSERTECH DÉMARRÉ AVEC SUCCÈS !`);
     console.log(`=============================================================`);
     console.log(`💻 Accès Ordinateur Local (Desktop) : http://127.0.0.1:${port}`);
-
-    if (host === "0.0.0.0") {
-      const interfaces = os.networkInterfaces();
-      const localIps: string[] = [];
-      for (const name of Object.keys(interfaces)) {
-        for (const net of interfaces[name] || []) {
-          if (net.family === "IPv4" && !net.internal) {
-            localIps.push(net.address);
-          }
-        }
-      }
-
-      if (localIps.length > 0) {
-        console.log(`📱 Accès Mobile / Android (Même réseau Wi-Fi) :`);
-        localIps.forEach(ip => {
-          console.log(`   👉 http://${ip}:${port}`);
-        });
-      }
-    }
+    console.log(`🛡️ Sécurité : Interface de bouclage locale stricte ${effectiveHost} (Zéro Pare-feu)`);
     console.log(`=============================================================\n`);
 
     if (process.env.AUTO_OPEN === "true") {

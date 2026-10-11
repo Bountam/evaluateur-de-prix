@@ -202,7 +202,7 @@ export default function UpdateModal({ isOpen, onClose, currentVersion }: UpdateM
                 Mises à Jour Automatiques GitHub
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Évaluateur Insertech — Version actuelle <span className="font-mono font-bold text-purple-600 dark:text-purple-400">v{currentVersion}</span>
+                Évaluateur de Prix — Version actuelle <span className="font-mono font-bold text-purple-600 dark:text-purple-400">v{currentVersion}</span>
               </p>
             </div>
           </div>

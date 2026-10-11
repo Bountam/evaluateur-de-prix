@@ -3,9 +3,10 @@ import { ExternalLink, ShoppingBag, FileText, TrendingUp, Info } from "lucide-re
 
 interface GcsurplusTabProps {
   lots: any[];
+  organization?: { name?: string; logoUrl?: string; tagline?: string };
 }
 
-export default function GcsurplusTab({ lots }: GcsurplusTabProps) {
+export default function GcsurplusTab({ lots, organization }: GcsurplusTabProps) {
   // Calculate aggregate stats
   const activeLotsCount = lots.length;
   const totalQuantity = lots.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
@@ -18,7 +19,7 @@ export default function GcsurplusTab({ lots }: GcsurplusTabProps) {
       <div className="p-3.5 bg-[#F1F2F6] border border-[#DCDDE1] rounded-lg text-slate-700 text-xs flex items-start space-x-3" id="gcsurplus-info-banner">
         <Info className="w-4 h-4 text-brand-purple dark:text-brand-lime shrink-0 mt-0.5" />
         <div>
-          <h4 className="font-bold text-[#2D3436] uppercase tracking-wide">Accès Autorisé d'Approvisionnement Insertech</h4>
+          <h4 className="font-bold text-[#2D3436] uppercase tracking-wide">Accès d'Approvisionnement en Lots {organization?.name ? `(${organization.name})` : ""}</h4>
           <p className="text-[11px] text-[#7F8C8D] mt-0.5">
             Ce tableau affiche les lots gouvernementaux canadiens de matériel informatique en cours d'adjudication sur <strong>GCSurplus</strong>. 
             Les prix unitaires calculés constituent des indices d'achat en gros essentiels pour calibrer nos seuils d'acquisition.

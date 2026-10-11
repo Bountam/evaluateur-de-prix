@@ -127,26 +127,26 @@ export function seedDatabase(): AppState {
       name: "GCSurplus",
       type: "Enchères gouvernementales",
       authorized: true,
-      status: process.env.GCSURPLUS_USERNAME ? "Connecté (Accès Insertech)" : "Recherche Publique",
-      description: "Source d'approvisionnement principale d'Insertech. Permet d'acquérir des lots informatiques au volume.",
+      status: process.env.GCSURPLUS_USERNAME ? "Connecté (Accès Entreprise)" : "Recherche Publique",
+      description: "Source d'approvisionnement en lots informatiques au volume.",
       url: "https://www.gcsurplus.ca/",
       sourceKey: "gcsurplus"
     },
     {
-      name: "Insertech (Interne)",
+      name: "Catalogue Interne",
       type: "Historique d'atelier & boutique",
       authorized: true,
       status: "Connecté (Fichier Excel/JSON)",
-      description: "Nos propres prix de vente appliqués en boutique solidaire, nos temps de rotation et historiques d'inventaire.",
-      url: "https://www.insertech.ca",
+      description: "Prix de vente appliqués en boutique, temps de rotation et historiques d'inventaire.",
+      url: "#",
       sourceKey: "insertech-internal"
     },
     {
-      name: "Insertech (Archives)",
+      name: "Archives d'Atelier",
       type: "Archives d'analyses historiques",
       authorized: true,
       status: "Actif (Scanner d'archives)",
-      description: "Archivage permanent de nos études de marché mensuelles et analyses historiques antérieures pour audit comptable.",
+      description: "Archivage permanent des études de marché et analyses historiques antérieures pour audit comptable.",
       url: "#",
       sourceKey: "insertech-archives"
     }
@@ -175,6 +175,7 @@ export function seedDatabase(): AppState {
   };
 
   return {
+    organization: { name: "", logoUrl: "" },
     selectors,
     healingStatus,
     evaluations,

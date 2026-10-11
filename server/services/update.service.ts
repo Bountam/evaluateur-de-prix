@@ -11,7 +11,8 @@ import { performGracefulShutdown } from "./lifecycle.service.ts";
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 /** Nom officiel de l'archive portable compilée publiée sur GitHub Releases. */
-export const PORTABLE_ASSET_NAME = "evaluateur-insertech-portable.zip";
+export const PORTABLE_ASSET_NAME = "evaluateur-de-prix-portable.zip";
+export const LEGACY_PORTABLE_ASSET_NAME = "evaluateur-insertech-portable.zip";
 
 /** Taille maximale acceptée pour l'archive téléchargée (protection disque / mémoire). */
 const MAX_DOWNLOAD_BYTES = 1024 * 1024 * 1024; // 1 Go
@@ -57,7 +58,7 @@ export const PROTECTED_ROOT_ENTRIES = [
 ];
 
 const GITHUB_HEADERS = {
-  "User-Agent": "Evaluateur-Insertech-App",
+  "User-Agent": "Evaluateur-De-Prix-App",
   "Accept": "application/vnd.github+json"
 };
 
@@ -181,9 +182,12 @@ export function isAllowedRedirectHost(urlStr: string): boolean {
 export function isPortableInstall(appDir: string = process.cwd()): boolean {
   return [
     "node.exe",
+    "Évaluateur de Prix.exe",
     "Évaluateur Insertech.exe",
+    path.join("..", "Évaluateur de Prix.exe"),
     path.join("..", "Évaluateur Insertech.exe"),
     path.join("app", "node.exe"),
+    "Lancer-GUI.vbs",
     "Lancer-Insertech-GUI.vbs",
     "Lancer-Insertech.sh"
   ].some(f => fs.existsSync(path.join(appDir, f)));
@@ -201,6 +205,7 @@ export function selectPortableAsset(assets: any[]): SelectedAsset | null {
   if (!Array.isArray(assets)) return null;
   const asset =
     assets.find(a => a?.name === PORTABLE_ASSET_NAME) ||
+    assets.find(a => a?.name === LEGACY_PORTABLE_ASSET_NAME) ||
     assets.find(a => typeof a?.name === "string" && /portable.*\.zip$/i.test(a.name));
   if (!asset || !asset.browser_download_url) return null;
 
@@ -295,7 +300,7 @@ export async function checkApplicationUpdate(
     if (relResponse.ok) {
       const releaseData = await relResponse.json() as any;
       latestTag = String(releaseData.tag_name || "").replace(/^v/i, "");
-      releaseNotes = releaseData.body || "Mise à jour de sécurité et de performances Insertech.";
+      releaseNotes = releaseData.body || "Mise à jour de sécurité et de performances.";
       publishedAt = releaseData.published_at
         ? new Date(releaseData.published_at).toLocaleDateString("fr-CA")
         : "Récemment";
@@ -456,6 +461,10 @@ export function assertSafeZipEntries(zip: AdmZip): void {
 /** Détermine le dossier racine réel du contenu extrait. */
 export function resolveSourceDir(extractDir: string): string {
   const items = fs.readdirSync(extractDir);
+  if (items.includes("evaluateur-de-prix-portable") &&
+      fs.statSync(path.join(extractDir, "evaluateur-de-prix-portable")).isDirectory()) {
+    return path.join(extractDir, "evaluateur-de-prix-portable");
+  }
   if (items.includes("evaluateur-insertech-portable") &&
       fs.statSync(path.join(extractDir, "evaluateur-insertech-portable")).isDirectory()) {
     return path.join(extractDir, "evaluateur-insertech-portable");
@@ -474,7 +483,7 @@ export function validatePortablePackage(sourceDir: string): void {
   const missing = required.filter(rel => !fs.existsSync(path.join(baseDir, rel)));
   if (missing.length > 0) {
     throw new UpdateValidationError(
-      `Archive non conforme au package portable Insertech (fichiers manquants : ${missing.join(", ")}). ` +
+      `Archive non conforme au package portable (fichiers manquants : ${missing.join(", ")}). ` +
       "Installation annulée, l'application actuelle reste intacte."
     );
   }
@@ -545,7 +554,7 @@ export function buildWindowsUpdaterScript(opts: WindowsUpdaterOptions): string {
     'set "LOG_FILE=%APP_DIR%\\logs\\update.log"',
     'echo [%DATE% %TIME%] Debut de l\'application de la mise a jour >> "%LOG_FILE%"',
     "",
-    "rem 1. Attendre l'arret gracieux du serveur Insertech (PID cible uniquement)",
+    "rem 1. Attendre l'arret gracieux du serveur (PID cible uniquement)",
     "set /a WAITED=0",
     ":WAIT_SERVER",
     `tasklist /FI "PID eq ${pid}" /NH 2>nul | find " ${pid} " >nul`,
@@ -587,6 +596,11 @@ export function buildWindowsUpdaterScript(opts: WindowsUpdaterOptions): string {
     "goto RELAUNCH",
     ":COPY_OK",
     'echo [%DATE% %TIME%] Copie terminee (robocopy code %RC%). >> "%LOG_FILE%"',
+    'if exist "%SRC_DIR%\\Évaluateur de Prix.exe" (',
+    '  if exist "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" >nul 2>&1',
+    '  move /y "%APP_DIR%\\..\\Évaluateur de Prix.exe" "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" >nul 2>&1',
+    '  copy /y "%SRC_DIR%\\Évaluateur de Prix.exe" "%APP_DIR%\\..\\Évaluateur de Prix.exe" >> "%LOG_FILE%" 2>&1',
+    ')',
     'if exist "%SRC_DIR%\\Évaluateur Insertech.exe" (',
     '  if exist "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
     '  move /y "%APP_DIR%\\..\\Évaluateur Insertech.exe" "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',

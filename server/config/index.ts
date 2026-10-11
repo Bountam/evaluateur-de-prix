@@ -125,7 +125,7 @@ export function getModelMeta(model: string) {
   } else if (model.includes("iPhone")) {
     configuration = model.includes("Pro Max") ? "Écran 6.7\", 128 Go, Débloqué" : (model.includes("Pro") ? "Écran 6.1\", 128 Go, Débloqué" : "Écran 6.1\", 64 Go, Débloqué");
     condition = "Excellent";
-    commentaires = "Marché secondaire extrêmement liquide. Rotation rapide en magasin Insertech.";
+    commentaires = "Marché secondaire extrêmement liquide. Rotation rapide en boutique et réemploi.";
   } else if (model.includes("ThinkCentre") || model.includes("OptiPlex") || model.includes("Desk")) {
     configuration = "Intel Core i5, 16 Go RAM, 512 Go NVMe SSD, Format Mini PC";
     condition = "Très bon";

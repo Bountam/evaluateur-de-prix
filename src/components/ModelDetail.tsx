@@ -147,8 +147,8 @@ export default function ModelDetail({
       "IT Refurbs Canada",
       "Canada Computers (Refurbished)",
       "SEAO (Appels d'offres & Lots publics)",
-      "Insertech (Interne)",
-      "Insertech (Archives)"
+      "Catalogue Interne",
+      "Archives d'Atelier"
     ];
     const presentSources = new Set<string>(default16);
     if (evaluation?.listings) {

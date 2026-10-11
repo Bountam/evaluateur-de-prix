@@ -211,5 +211,59 @@ describe("Service Excel avec ExcelJS (Jalon 6)", () => {
       expect(dbRestored.evaluations["Latitude 5420 Special"].listings[0].originalPrice).toBe(480);
       expect(dbRestored.customModels.some((cm: any) => cm.modelName === "Latitude 5420 Special")).toBe(true);
     });
+
+    it("génère et restaure les informations de l'organisation (marque blanche) sans créer de faux modèles", async () => {
+      // 1. Configurer une organisation personnalisée dans la base
+      const db = readDB();
+      db.organization = {
+        name: "EcoTech Reconditionnement",
+        logoUrl: "https://ecotech.example.org/logo.png",
+        tagline: "Matériel informatique durable et certifié"
+      };
+      writeDB(db);
+
+      // 2. Exporter en classeur maître
+      const exportRes = await generateMasterExcel();
+      expect(exportRes.success).toBe(true);
+
+      // 3. Charger le classeur exporté
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(exportRes.localMasterPath);
+
+      // Vérifier la présence de la feuille Organisation
+      const orgSheet = wb.getWorksheet("Organisation");
+      expect(orgSheet).toBeDefined();
+      const orgRows = worksheetToJson(orgSheet!);
+      expect(orgRows.some(r => r["Propriété"] === "Nom de l'organisation" && r["Valeur"] === "EcoTech Reconditionnement")).toBe(true);
+      expect(orgRows.some(r => r["Propriété"] === "URL ou Données du Logo" && r["Valeur"] === "https://ecotech.example.org/logo.png")).toBe(true);
+      expect(orgRows.some(r => r["Propriété"] === "Slogan / Description" && r["Valeur"] === "Matériel informatique durable et certifié")).toBe(true);
+
+      // Vérifier que Métadonnées contient l'organisation
+      const metaSheet = wb.getWorksheet("Métadonnées");
+      expect(metaSheet).toBeDefined();
+      const metaRows = worksheetToJson(metaSheet!);
+      expect(metaRows.some(r => r["Propriété"] === "Organisation" && r["Valeur"] === "EcoTech Reconditionnement")).toBe(true);
+      expect(metaRows.some(r => r["Propriété"] === "Logo" && r["Valeur"] === "https://ecotech.example.org/logo.png")).toBe(true);
+
+      // 4. Tester processImportPreview : s'assurer que l'organisation n'est pas détectée comme un modèle d'ordinateur
+      const preview = processImportPreview(wb);
+      expect(preview.sampleModels.some(m => m.model.toLowerCase().includes("ecotech"))).toBe(false);
+
+      // 5. Réinitialiser la base de données
+      writeDB(seedDatabase());
+      const dbReset = readDB();
+      expect(dbReset.organization.name).toBe("");
+      expect(dbReset.organization.logoUrl).toBe("");
+
+      // 6. Importer le classeur et vérifier la restauration fidèle
+      await executeImportExcel(wb);
+      const dbRestored = readDB();
+      expect(dbRestored.organization).toBeDefined();
+      expect(dbRestored.organization.name).toBe("EcoTech Reconditionnement");
+      expect(dbRestored.organization.logoUrl).toBe("https://ecotech.example.org/logo.png");
+      expect(dbRestored.organization.tagline).toBe("Matériel informatique durable et certifié");
+      expect(dbRestored.evaluations["EcoTech Reconditionnement"]).toBeUndefined();
+    });
   });
 });
+

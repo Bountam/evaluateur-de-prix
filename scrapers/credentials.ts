@@ -13,6 +13,8 @@ const DB_FILE = path.join(PROJECT_ROOT, 'db.json');
 export interface CredentialsConfig {
   GCSURPLUS_USERNAME?: string;
   GCSURPLUS_PASSWORD?: string;
+  INTERNAL_CATALOG_PATH?: string;
+  INTERNAL_ARCHIVES_PATH?: string;
   INSERTECH_DATA_PATH?: string;
   INSERTECH_ARCHIVES_PATH?: string;
   EBAY_APP_ID?: string;
@@ -22,11 +24,20 @@ export interface CredentialsConfig {
 }
 
 export function getCredentials(): CredentialsConfig {
+  const defaultCatalog = fs.existsSync(path.join(PROJECT_ROOT, 'data', 'catalogue-interne.xlsx'))
+    ? 'data/catalogue-interne.xlsx'
+    : (fs.existsSync(path.join(PROJECT_ROOT, 'data', 'insertech-prices.xlsx')) ? 'data/insertech-prices.xlsx' : 'data/catalogue-interne.xlsx');
+
+  const catalogPath = process.env.INTERNAL_CATALOG_PATH || process.env.INSERTECH_DATA_PATH || defaultCatalog;
+  const archivesPath = process.env.INTERNAL_ARCHIVES_PATH || process.env.INSERTECH_ARCHIVES_PATH || 'data/archives/';
+
   const creds: CredentialsConfig = {
     GCSURPLUS_USERNAME: process.env.GCSURPLUS_USERNAME || '',
     GCSURPLUS_PASSWORD: process.env.GCSURPLUS_PASSWORD || '',
-    INSERTECH_DATA_PATH: process.env.INSERTECH_DATA_PATH || 'data/insertech-prices.xlsx',
-    INSERTECH_ARCHIVES_PATH: process.env.INSERTECH_ARCHIVES_PATH || 'data/archives/',
+    INTERNAL_CATALOG_PATH: catalogPath,
+    INTERNAL_ARCHIVES_PATH: archivesPath,
+    INSERTECH_DATA_PATH: catalogPath,
+    INSERTECH_ARCHIVES_PATH: archivesPath,
     EBAY_APP_ID: process.env.EBAY_APP_ID || '',
     EBAY_CERT_ID: process.env.EBAY_CERT_ID || '',
     BESTBUY_API_KEY: process.env.BESTBUY_API_KEY || '',
@@ -40,10 +51,20 @@ export function getCredentials(): CredentialsConfig {
         Object.keys(db.credentials).forEach((k) => {
           if (db.credentials[k] && typeof db.credentials[k] === 'string') {
             creds[k] = db.credentials[k];
-            // Mettre aussi à jour process.env en mémoire pour cohérence
             process.env[k] = db.credentials[k];
           }
         });
+        // Synchroniser les alias réciproques
+        if (db.credentials.INTERNAL_CATALOG_PATH && !db.credentials.INSERTECH_DATA_PATH) {
+          creds.INSERTECH_DATA_PATH = db.credentials.INTERNAL_CATALOG_PATH;
+        } else if (db.credentials.INSERTECH_DATA_PATH && !db.credentials.INTERNAL_CATALOG_PATH) {
+          creds.INTERNAL_CATALOG_PATH = db.credentials.INSERTECH_DATA_PATH;
+        }
+        if (db.credentials.INTERNAL_ARCHIVES_PATH && !db.credentials.INSERTECH_ARCHIVES_PATH) {
+          creds.INSERTECH_ARCHIVES_PATH = db.credentials.INTERNAL_ARCHIVES_PATH;
+        } else if (db.credentials.INSERTECH_ARCHIVES_PATH && !db.credentials.INTERNAL_ARCHIVES_PATH) {
+          creds.INTERNAL_ARCHIVES_PATH = db.credentials.INSERTECH_ARCHIVES_PATH;
+        }
       }
     }
   } catch (err) {

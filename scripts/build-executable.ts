@@ -15,7 +15,7 @@ if (fs.existsSync(localNodeDir)) {
   process.env.PATH = `${localNodeDir};${process.env.PATH}`;
 }
 
-console.log('🚀 Démarrage du packaging 100% autonome de l\'Évaluateur Insertech Portable...');
+console.log('🚀 Démarrage du packaging 100% autonome de l\'Évaluateur de Prix Portable...');
 
 // 1. Build Vite Frontend
 console.log('📦 1/4 - Compilation de l\'application Web React/Vite...');
@@ -72,8 +72,9 @@ if (fs.existsSync(PORTABLE_DIR)) {
 fs.mkdirSync(PORTABLE_DIR, { recursive: true });
 fs.mkdirSync(APP_DIR, { recursive: true });
 
-// Copier les fichiers distribuables dist -> portable/app/dist
+// Copier les fichiers distribuables dist -> portable/app/dist et portable/dist (rétrocompatibilité v1.5.0)
 copyFolderRecursiveSync(DIST_DIR, path.join(APP_DIR, 'dist'));
+copyFolderRecursiveSync(DIST_DIR, path.join(PORTABLE_DIR, 'dist'));
 
 // Copier les dépendances node_modules dans le sous-dossier technique app/
 const nodeModulesDir = path.join(ROOT_DIR, 'node_modules');
@@ -138,6 +139,7 @@ try {
   if (fs.existsSync(nodeExePath) && nodeExePath.toLowerCase().endsWith('node.exe')) {
     console.log(`🟢 Copie de node.exe autonome dans app/node.exe depuis ${nodeExePath}...`);
     fs.copyFileSync(nodeExePath, path.join(APP_DIR, 'node.exe'));
+    fs.copyFileSync(nodeExePath, path.join(PORTABLE_DIR, 'node.exe'));
   }
 } catch (err) {
   console.warn('⚠️ Impossible de copier automatiquement node.exe:', err);
@@ -177,7 +179,7 @@ const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
 const launcherSource = path.join(ROOT_DIR, 'launcher', 'Launcher.cs');
 const iconPath = path.join(ROOT_DIR, 'assets', 'icon', 'app.ico');
 const manifestPath = path.join(ROOT_DIR, 'launcher', 'app.manifest');
-const targetExe = path.join(PORTABLE_DIR, 'Évaluateur Insertech.exe');
+const targetExe = path.join(PORTABLE_DIR, 'Évaluateur de Prix.exe');
 
 if (fs.existsSync(cscPath) && fs.existsSync(launcherSource) && fs.existsSync(iconPath)) {
   try {
@@ -199,12 +201,12 @@ if (fs.existsSync(cscPath) && fs.existsSync(launcherSource) && fs.existsSync(ico
 }
 
 // Notice de conformité et zéro blocage
-const securityNotice = `# Évaluateur de Prix Insertech - Version Portable Autonome
+const securityNotice = `# Évaluateur de Prix du Marché Reconditionné - Version Portable Autonome
 
-Bienvenue dans l'Évaluateur de Prix Insertech.
+Bienvenue dans l'Évaluateur de Prix.
 
 ## 🚀 Démarrage
-Pour démarrer l'application, double-cliquez simplement sur **Évaluateur Insertech.exe**.
+Pour démarrer l'application, double-cliquez simplement sur **Évaluateur de Prix.exe**.
 
 L'application s'ouvre dans une fenêtre dédiée sans console noire et se ferme proprement à la fermeture de la fenêtre.
 `;
@@ -212,7 +214,7 @@ fs.writeFileSync(path.join(PORTABLE_DIR, 'LISEZMOI.md'), securityNotice, 'utf-8'
 
 // 5. Générer l'archive ZIP portable autonome
 console.log('📦 Génération de l\'archive ZIP portable autonome finale...');
-const zipPath = path.join(ROOT_DIR, 'evaluateur-insertech-portable.zip');
+const zipPath = path.join(ROOT_DIR, 'evaluateur-de-prix-portable.zip');
 if (fs.existsSync(zipPath)) {
   try {
     fs.unlinkSync(zipPath);
@@ -223,16 +225,24 @@ if (process.platform === 'win32') {
   try {
     execSync(`powershell -Command "Compress-Archive -Path '${PORTABLE_DIR}\\*' -DestinationPath '${zipPath}' -Force"`, { cwd: ROOT_DIR });
     console.log(`📦 Archive ZIP créée avec succès : ${zipPath}`);
+    const legacyZipPath = path.join(ROOT_DIR, 'evaluateur-insertech-portable.zip');
+    fs.copyFileSync(zipPath, legacyZipPath);
+    console.log(`📦 Archive ZIP rétrocompatible (v1.5.0) créée : ${legacyZipPath}`);
   } catch (err) {
     console.warn('⚠️ Impossible de créer automatiquement l\'archive ZIP:', err);
   }
 }
 
-// Rendre le sous-dossier technique app/ discret (attribut masqué sous Windows)
+// Rendre les dossiers et fichiers techniques discrets (attributs masqués sous Windows)
+// Seuls 'Évaluateur de Prix.exe' et 'LISEZMOI.md' demeurent visibles à la racine
 if (process.platform === 'win32') {
   try {
     execSync(`attrib +h "${APP_DIR}"`, { stdio: 'ignore' });
-    console.log('🔒 Dossier technique app/ masqué sous Windows Explorer.');
+    const rootDist = path.join(PORTABLE_DIR, 'dist');
+    if (fs.existsSync(rootDist)) execSync(`attrib +h "${rootDist}"`, { stdio: 'ignore' });
+    const rootNode = path.join(PORTABLE_DIR, 'node.exe');
+    if (fs.existsSync(rootNode)) execSync(`attrib +h "${rootNode}"`, { stdio: 'ignore' });
+    console.log('🔒 Éléments techniques masqués (app/, dist/, node.exe) sous Windows Explorer.');
   } catch {}
 }
 
@@ -241,6 +251,7 @@ console.log('✅ EMBALLAGE 100% AUTONOME TERMINÉ !');
 console.log(`📁 Dossier Portable : ${PORTABLE_DIR}`);
 console.log(`🎯 Lanceur Unique : ${targetExe}`);
 if (fs.existsSync(zipPath)) {
-  console.log(`📦 Archive ZIP prête : ${zipPath}`);
+  console.log(`📦 Archive ZIP officielle : ${zipPath}`);
+  console.log(`📦 Archive ZIP rétrocompatible : ${path.join(ROOT_DIR, 'evaluateur-insertech-portable.zip')}`);
 }
 console.log('=============================================================\n');

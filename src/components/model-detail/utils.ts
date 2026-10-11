@@ -16,8 +16,8 @@ export const SOURCES_LIST = [
   { key: "canada-computers", name: "Canada Comp", icon: "🔴" },
   { key: "seao", name: "SEAO Québec", icon: "🏛️" },
   { key: "gcsurplus", name: "GCSurplus", icon: "🇨🇦" },
-  { key: "insertech-internal", name: "Insertech Interne", icon: "🏢" },
-  { key: "insertech-archives", name: "Insertech Archives", icon: "📁" },
+  { key: "insertech-internal", name: "Catalogue Interne", icon: "🏢" },
+  { key: "insertech-archives", name: "Archives d'Atelier", icon: "📁" },
 ];
 
 export const cleanLogSource = (log: string): string => {

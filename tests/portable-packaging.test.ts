@@ -27,7 +27,7 @@ describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", 
 
     // Vérifier la compilation C# du lanceur natif avec icône intégrée et manifeste
     expect(scriptContent).toContain("csc.exe");
-    expect(scriptContent).toContain("Évaluateur Insertech.exe");
+    expect(scriptContent).toContain("Évaluateur de Prix.exe");
     expect(scriptContent).toContain("/win32icon");
     expect(scriptContent).toContain("/win32manifest");
 
@@ -44,7 +44,7 @@ describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", 
 
     // Mutex pour instance unique et restauration de la fenêtre existante
     expect(launcherContent).toContain("Mutex");
-    expect(launcherContent).toContain("EvaluateurInsertechLauncherMutex");
+    expect(launcherContent).toContain("EvaluateurPrixLauncherMutex");
 
     // Détection dynamique du port et suivi du PID
     expect(launcherContent).toContain(".server.pid");
@@ -52,7 +52,7 @@ describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", 
 
     // Arrêt gracieux via token de sécurité
     expect(launcherContent).toContain("/api/system/shutdown");
-    expect(launcherContent).toContain("INSERTECH_SHUTDOWN_TOKEN");
+    expect(launcherContent).toContain("APP_SHUTDOWN_TOKEN");
     expect(launcherContent).toContain("X-Shutdown-Token");
 
     // Aucun kill aveugle de tous les processus node.exe

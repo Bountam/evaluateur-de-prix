@@ -12,7 +12,7 @@ import UpdateModal from "./components/UpdateModal";
 import SessionInitModal from "./components/SessionInitModal";
 import UserSwitchModal from "./components/UserSwitchModal";
 import { MASTER_LIST_MODELS, normalizeCategory } from "./modelsData";
-import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, GcsurplusLot, DataSource, HistoricalLogEntry } from "./types";
+import { AppState, ModelEvaluation, SiteSelectors, SelfHealingStatus, GcsurplusLot, DataSource, HistoricalLogEntry, OrganizationConfig } from "./types";
 import { 
   FileSpreadsheet, 
   Settings, 
@@ -35,21 +35,39 @@ import {
   Sparkles
 } from "lucide-react";
 import Logo from "./components/Logo";
+import SourcesTab from "./components/SourcesTab";
+
+function getStoredValue(key: string, defaultValue = ""): string {
+  return localStorage.getItem(`evaluateur_${key}`) ?? localStorage.getItem(`insertech_${key}`) ?? defaultValue;
+}
+
+function setStoredValue(key: string, value: string): void {
+  localStorage.setItem(`evaluateur_${key}`, value);
+}
+
+function getSessionValue(key: string, defaultValue = ""): string {
+  return sessionStorage.getItem(`evaluateur_${key}`) ?? sessionStorage.getItem(`insertech_${key}`) ?? defaultValue;
+}
+
+function setSessionValue(key: string, value: string): void {
+  sessionStorage.setItem(`evaluateur_${key}`, value);
+}
 
 export default function App() {
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem("insertech_selectedModel") || "ThinkPad T480";
+    return getStoredValue("selectedModel", "ThinkPad T480");
   });
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
-    return localStorage.getItem("insertech_selectedCategory") || "Portables Lenovo";
+    return getStoredValue("selectedCategory", "Portables Lenovo");
   });
   const [evaluations, setEvaluations] = useState<Record<string, ModelEvaluation>>({});
   const [selectors, setSelectors] = useState<SiteSelectors | null>(null);
   const [healingStatus, setHealingStatus] = useState<Record<string, SelfHealingStatus>>({});
   const [activeTab, setActiveTab] = useState<string>(() => {
-    const saved = localStorage.getItem("insertech_activeTab");
-    return saved && saved !== "synthese" && saved !== "sources" ? saved : "portables";
+    const saved = getStoredValue("activeTab");
+    return saved && saved !== "synthese" ? saved : "portables";
   });
+  const [organization, setOrganization] = useState<OrganizationConfig>({ name: "", logoUrl: "", tagline: "" });
   const [scrapingModels, setScrapingModels] = useState<Record<string, { isScraping: boolean; progress: number; logs: string[] }>>({});
   const activePollIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
@@ -73,21 +91,21 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion, setAppVersion] = useState("1.5.1");
+  const [appVersion, setAppVersion] = useState("1.5.2");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Opérateur & Modals de Session ---
   const [operatorName, setOperatorName] = useState<string>(() => {
-    return sessionStorage.getItem("insertech_operatorName") || "";
+    return getSessionValue("operatorName", "");
   });
   const [isSessionInitOpen, setIsSessionInitOpen] = useState<boolean>(() => {
-    return !sessionStorage.getItem("insertech_operatorName");
+    return !getSessionValue("operatorName");
   });
   const [isUserSwitchOpen, setIsUserSwitchOpen] = useState<boolean>(false);
 
   const handleStartSession = async (userName: string, fileData?: string) => {
     setOperatorName(userName);
-    sessionStorage.setItem("insertech_operatorName", userName);
+    setSessionValue("operatorName", userName);
 
     if (fileData) {
       const result = await handleImportExcel(fileData);
@@ -117,7 +135,7 @@ export default function App() {
 
   // --- Gestion de la concurrence CPU ---
   const [concurrency, setConcurrency] = useState<number>(() => {
-    const saved = localStorage.getItem("insertech_concurrency");
+    const saved = getStoredValue("concurrency");
     return saved ? parseInt(saved, 10) : 2;
   });
   const [isConcurrencyModalOpen, setIsConcurrencyModalOpen] = useState(false);
@@ -156,13 +174,13 @@ export default function App() {
   }, [customModels]);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem("insertech_theme") as 'light' | 'dark') || "light";
+    return (getStoredValue("theme", "light") as 'light' | 'dark') || "light";
   });
 
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === "light" ? "dark" : "light";
-      localStorage.setItem("insertech_theme", next);
+      setStoredValue("theme", next);
       return next;
     });
   };
@@ -177,15 +195,15 @@ export default function App() {
 
   // Persist navigation state to localStorage so tab and model remain selected
   useEffect(() => {
-    localStorage.setItem("insertech_selectedModel", selectedModel);
+    setStoredValue("selectedModel", selectedModel);
   }, [selectedModel]);
 
   useEffect(() => {
-    localStorage.setItem("insertech_selectedCategory", selectedCategory);
+    setStoredValue("selectedCategory", selectedCategory);
   }, [selectedCategory]);
 
   useEffect(() => {
-    localStorage.setItem("insertech_activeTab", activeTab);
+    setStoredValue("activeTab", activeTab);
   }, [activeTab]);
 
   const fetchControllerRef = useRef<AbortController | null>(null);
@@ -212,6 +230,7 @@ export default function App() {
         setSources(data.sources || []);
         setHistoricalLog(data.historicalLog || []);
         setCustomModels(data.customModels || []);
+        if (data.organization) setOrganization(data.organization);
         setErrorMsg(null);
       } else {
         setErrorMsg("Impossible de récupérer l'état de l'application depuis le serveur.");
@@ -558,14 +577,18 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-4" id="header-content">
           <div>
             <div className="flex items-center space-x-3">
-              <Logo className="h-8 md:h-10" />
-
+              <Logo className="h-8 md:h-10" logoUrl={organization?.logoUrl} orgName={organization?.name} />
+              {organization?.name && (
+                <span className="text-xs font-mono font-bold uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded border border-white/20">
+                  {organization.name}
+                </span>
+              )}
             </div>
             <h1 className="text-xl font-serif font-bold text-white tracking-normal mt-1.5">
-              Évaluateur de tarif du marché reconditionné
+              {organization?.name ? `${organization.name} — Évaluateur de Prix` : "Évaluateur de tarif du marché reconditionné"}
             </h1>
             <p className="text-[11px] text-slate-300 mt-0.5">
-              Plateforme d'audit autonome : résilience heuristique, nettoyage statistique et preuves comptables réglementaires.
+              {organization?.tagline || "Plateforme d'audit autonome : résilience heuristique, nettoyage statistique et preuves comptables réglementaires."}
             </p>
           </div>
 
@@ -717,6 +740,32 @@ export default function App() {
             <span>ÉCARTS</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab("gcsurplus")}
+            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+              activeTab === "gcsurplus"
+                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                : "border-transparent text-text-muted hover:text-text-main"
+            }`}
+            id="nav-btn-gcsurplus"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>GCSURPLUS</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("sources")}
+            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+              activeTab === "sources"
+                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                : "border-transparent text-text-muted hover:text-text-main"
+            }`}
+            id="nav-btn-sources"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>SOURCES & MARQUE</span>
+          </button>
+
           <div className="flex-1 min-w-4"></div>
 
 
@@ -814,7 +863,20 @@ export default function App() {
           <EcartsTab evaluations={evaluations} />
         )}
 
+        {/* GC Surplus Tab */}
+        {activeTab === "gcsurplus" && (
+          <GcsurplusTab lots={gcsurplusLots} organization={organization} />
+        )}
 
+        {/* Sources & Marque Blanche Tab */}
+        {activeTab === "sources" && (
+          <SourcesTab
+            sources={sources}
+            onPurgeAll={handlePurgeAll}
+            organization={organization}
+            onOrganizationUpdate={setOrganization}
+          />
+        )}
 
         {/* Export tab */}
         {activeTab === "export" && (
@@ -850,8 +912,6 @@ export default function App() {
         }}
       />
 
-
-
       {/* Modal de configuration de la concurrence CPU */}
       <ConcurrencyModal
         isOpen={isConcurrencyModalOpen}
@@ -859,7 +919,7 @@ export default function App() {
         concurrency={concurrency}
         onSaveConcurrency={(value) => {
           setConcurrency(value);
-          localStorage.setItem("insertech_concurrency", value.toString());
+          setStoredValue("concurrency", value.toString());
         }}
       />
 

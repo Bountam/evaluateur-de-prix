@@ -24,7 +24,7 @@ describe("Système de Mise à Jour Sécurisé (Audit & Durcissement)", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "insertech-update-test-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "evaluateur-update-test-"));
   });
 
   afterEach(() => {
@@ -80,7 +80,7 @@ describe("Système de Mise à Jour Sécurisé (Audit & Durcissement)", () => {
     it("valide les formats de slugs GitHub autorisés", () => {
       expect(isValidRepoSlug("Bountam/evaluateur-de-prix")).toBe(true);
       expect(isValidRepoSlug("octocat/hello-world_1")).toBe(true);
-      expect(isValidRepoSlug("insertech/app.portable")).toBe(true);
+      expect(isValidRepoSlug("organisation/app.portable")).toBe(true);
 
       // Invalides
       expect(isValidRepoSlug("../../../evil")).toBe(false);
@@ -134,7 +134,7 @@ describe("Système de Mise à Jour Sécurisé (Audit & Durcissement)", () => {
   });
 
   describe("3. Sélection Sécurisée d'Assets Portables (selectPortableAsset)", () => {
-    it("détecte le package officiel evaluateur-insertech-portable.zip", () => {
+    it("détecte le package officiel de mise à jour portable compilée", () => {
       const assets = [
         { name: "sources.tar.gz", browser_download_url: "https://github.com/.../sources.tar.gz" },
         {

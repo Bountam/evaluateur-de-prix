@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace EvaluateurInsertech
+namespace EvaluateurPrix
 {
     static class Program
     {
@@ -29,7 +29,7 @@ namespace EvaluateurInsertech
         private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
 
         private const int SW_RESTORE = 9;
-        private const string MUTEX_NAME = @"Local\EvaluateurInsertechLauncherMutex";
+        private const string MUTEX_NAME = @"Local\EvaluateurPrixLauncherMutex";
 
         private static IntPtr foundExistingHwnd = IntPtr.Zero;
 
@@ -140,7 +140,7 @@ namespace EvaluateurInsertech
                 {
                     MessageBox.Show(
                         "Fichier serveur introuvable :\n" + serverJs + "\n\nVeuillez vérifier l'intégrité du package portable.",
-                        "Évaluateur Insertech - Erreur",
+                        "Évaluateur de Prix - Erreur",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
                     );
@@ -161,6 +161,7 @@ namespace EvaluateurInsertech
 
                 psiNode.EnvironmentVariables["NODE_ENV"] = "production";
                 psiNode.EnvironmentVariables["HOST"] = "127.0.0.1";
+                psiNode.EnvironmentVariables["APP_SHUTDOWN_TOKEN"] = shutdownToken;
                 psiNode.EnvironmentVariables["INSERTECH_SHUTDOWN_TOKEN"] = shutdownToken;
 
                 string chromiumExe = Path.Combine(appDir, "chromium", "chrome.exe");
@@ -178,7 +179,7 @@ namespace EvaluateurInsertech
                 {
                     MessageBox.Show(
                         "Impossible de lancer Node.js :\n" + ex.Message + "\n\nChemin : " + nodeExe,
-                        "Évaluateur Insertech - Erreur",
+                        "Évaluateur de Prix - Erreur",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
                     );
@@ -228,7 +229,7 @@ namespace EvaluateurInsertech
                     {
                         MessageBox.Show(
                             "Le serveur de l'application s'est arrêté de manière inattendue.\nCode de sortie : " + nodeProcess.ExitCode,
-                            "Évaluateur Insertech - Erreur",
+                            "Évaluateur de Prix - Erreur",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error
                         );
@@ -240,7 +241,7 @@ namespace EvaluateurInsertech
                 {
                     MessageBox.Show(
                         "Le serveur met trop de temps à répondre. Vérifiez les journaux dans app\\logs.",
-                        "Évaluateur Insertech - Délai dépassé",
+                        "Évaluateur de Prix - Délai dépassé",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning
                     );
@@ -256,7 +257,7 @@ namespace EvaluateurInsertech
                 Process browserProcess = null;
                 if (edgePath != null)
                 {
-                    string profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"EvaluateurInsertech\browser-profile");
+                    string profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"EvaluateurPrix\browser-profile");
                     ProcessStartInfo psiEdge = new ProcessStartInfo();
                     psiEdge.FileName = edgePath;
                     psiEdge.Arguments = "--app=\"" + targetUrl + "\" --disable-http-cache --disk-cache-size=1 --user-data-dir=\"" + profileDir + "\" --no-first-run --no-default-browser-check";

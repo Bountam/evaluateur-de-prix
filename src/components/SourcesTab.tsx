@@ -21,25 +21,92 @@ import {
   Sparkles, 
   MapPin, 
   AlertCircle,
-  Trash2
+  Trash2,
+  Building2,
+  Upload,
+  RefreshCw
 } from "lucide-react";
-import { DataSource } from "../types";
+import { DataSource, OrganizationConfig } from "../types";
+import Logo from "./Logo";
 
 interface SourcesTabProps {
   sources: DataSource[];
   onPurgeAll?: () => Promise<void>;
+  organization?: OrganizationConfig;
+  onOrganizationUpdate?: (org: OrganizationConfig) => void;
 }
 
-export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
+export default function SourcesTab({ sources, onPurgeAll, organization, onOrganizationUpdate }: SourcesTabProps) {
   const [credentials, setCredentials] = useState<{
     GCSURPLUS_USERNAME?: string;
     GCSURPLUS_PASSWORD?: string;
+    INTERNAL_CATALOG_PATH?: string;
+    INTERNAL_ARCHIVES_PATH?: string;
     INSERTECH_DATA_PATH?: string;
     INSERTECH_ARCHIVES_PATH?: string;
     EBAY_APP_ID?: string;
     EBAY_CERT_ID?: string;
     BESTBUY_API_KEY?: string;
   }>({});
+  const [orgConfig, setOrgConfig] = useState<OrganizationConfig>({
+    name: organization?.name || "",
+    logoUrl: organization?.logoUrl || "",
+    tagline: organization?.tagline || ""
+  });
+  const [savingOrg, setSavingOrg] = useState(false);
+  const [orgSaveMessage, setOrgSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (organization) {
+      setOrgConfig({
+        name: organization.name || "",
+        logoUrl: organization.logoUrl || "",
+        tagline: organization.tagline || ""
+      });
+    }
+  }, [organization]);
+
+  const handleSaveOrganization = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingOrg(true);
+    setOrgSaveMessage(null);
+    try {
+      const res = await fetch("/api/organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organization: orgConfig })
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setOrgSaveMessage("✔️ Image de marque enregistrée avec succès !");
+        if (onOrganizationUpdate) {
+          onOrganizationUpdate(data.organization);
+        }
+        setTimeout(() => setOrgSaveMessage(null), 4000);
+      } else {
+        setOrgSaveMessage("⚠️ Erreur lors de l'enregistrement de l'organisation.");
+      }
+    } catch {
+      setOrgSaveMessage("⚠️ Erreur réseau lors de l'enregistrement.");
+    } finally {
+      setSavingOrg(false);
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("L'image ne doit pas dépasser 2 Mo.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setOrgConfig(prev => ({ ...prev, logoUrl: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [purging, setPurging] = useState(false);
@@ -123,6 +190,135 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
   return (
     <div className="space-y-8 animate-fadeIn" id="sources-tab-container">
       
+      {/* SECTION 0: Organisation & Image de Marque (Marque Blanche) */}
+      <div className="bg-bg-card border border-border-main rounded-xl p-6 shadow-md" id="section-organisation">
+        <div className="flex items-center justify-between pb-4 border-b border-border-main mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-brand-purple-light dark:bg-brand-lime-light">
+              <Building2 className="w-5 h-5 text-brand-purple dark:text-brand-lime" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-text-main uppercase tracking-wider font-title">
+                Organisation & Image de Marque (Marque Blanche)
+              </h3>
+              <p className="text-[11px] text-text-muted">
+                Personnalisez le nom et le logo de l'entreprise. Ces éléments sont dynamiques, sauvegardés en base et synchronisés avec vos exports Excel.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveOrganization} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-7 space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wide mb-1.5">
+                Nom de l'organisation ou de l'entreprise
+              </label>
+              <input
+                type="text"
+                value={orgConfig.name}
+                onChange={e => setOrgConfig({ ...orgConfig, name: e.target.value })}
+                placeholder="Ex. : Insertech, Réemploi Informatique, Mon Entreprise..."
+                className="w-full text-xs p-2.5 border border-border-main rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime bg-white dark:bg-slate-900 text-text-main"
+              />
+              <p className="text-[10px] text-text-muted mt-1">
+                Laissé vide, le titre par défaut sera « Évaluateur de Prix du Marché Reconditionné ».
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wide mb-1.5">
+                Logo de l'organisation (URL web ou fichier importé)
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={orgConfig.logoUrl || ""}
+                  onChange={e => setOrgConfig({ ...orgConfig, logoUrl: e.target.value })}
+                  placeholder="https://... ou téléversez un fichier ci-contre"
+                  className="flex-1 text-xs p-2.5 border border-border-main rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime font-mono bg-white dark:bg-slate-900 text-text-main"
+                />
+                <label className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-main border border-border-main px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer flex items-center space-x-1.5 transition">
+                  <Upload className="w-3.5 h-3.5 text-text-muted" />
+                  <span>Téléverser</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                </label>
+                {orgConfig.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setOrgConfig({ ...orgConfig, logoUrl: "" })}
+                    className="p-2.5 border border-border-main rounded-lg text-text-muted hover:text-rose-500 hover:border-rose-300 dark:hover:border-rose-900 transition"
+                    title="Réinitialiser au logo générique"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-text-muted mt-1">
+                Formats acceptés : SVG, PNG, JPG (recommandé : fond transparent ou contrasté).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wide mb-1.5">
+                Slogan / Description officielle
+              </label>
+              <input
+                type="text"
+                value={orgConfig.tagline || ""}
+                onChange={e => setOrgConfig({ ...orgConfig, tagline: e.target.value })}
+                placeholder="Ex. : Spécialiste du réemploi et reconditionnement informatique certifié"
+                className="w-full text-xs p-2.5 border border-border-main rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime bg-white dark:bg-slate-900 text-text-main"
+              />
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="submit"
+                disabled={savingOrg}
+                className="bg-brand-purple hover:bg-brand-purple-hover text-white dark:bg-brand-lime dark:hover:bg-brand-lime-hover dark:text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center space-x-2 transition disabled:opacity-50 shadow-md cursor-pointer"
+              >
+                {savingOrg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Enregistrer l'organisation</span>
+              </button>
+              {orgSaveMessage && (
+                <span className={`text-[11px] font-bold ${orgSaveMessage.includes('✔️') ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  {orgSaveMessage}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Aperçu en direct */}
+          <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/40 border border-border-main rounded-xl p-4 space-y-3">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-text-muted block">
+              Aperçu en Direct de l'En-tête
+            </span>
+            <div className="bg-brand-purple dark:bg-slate-950 p-3.5 rounded-lg border border-black/20 text-white shadow-inner">
+              <div className="flex items-center space-x-3">
+                <Logo className="h-8 w-auto" logoUrl={orgConfig.logoUrl} orgName={orgConfig.name} />
+                <div>
+                  <h4 className="text-sm font-serif font-bold text-white tracking-normal">
+                    {orgConfig.name ? `${orgConfig.name} — Évaluateur de Prix` : "Évaluateur de Prix du Marché Reconditionné"}
+                  </h4>
+                  <p className="text-[10px] text-slate-300 line-clamp-1">
+                    {orgConfig.tagline || "Plateforme d'audit autonome : résilience heuristique et preuves comptables."}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-border-main text-[11px] text-text-muted leading-relaxed">
+              💡 <strong>Intégration Excel :</strong> Le nom et le logo définis ici sont automatiquement exportés dans la feuille <em>Organisation</em> et les <em>Métadonnées</em> de vos classeurs Excel. Lors d'un import de classeur, ils sont automatiquement restaurés.
+            </div>
+          </div>
+        </form>
+      </div>
+
       {/* SECTION 1: Architecture & Global Configuration */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
@@ -234,7 +430,7 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
                     : "text-text-muted hover:text-text-main"
                 }`}
               >
-                📁 Fichiers Insertech
+                📁 Fichiers Internes & Atelier
               </button>
               <button
                 type="button"
@@ -306,9 +502,13 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
                     </label>
                     <input 
                       type="text" 
-                      value={credentials.INSERTECH_DATA_PATH || ""} 
-                      onChange={e => setCredentials({ ...credentials, INSERTECH_DATA_PATH: e.target.value })}
-                      placeholder="data/insertech-prices.xlsx"
+                      value={credentials.INTERNAL_CATALOG_PATH || credentials.INSERTECH_DATA_PATH || ""} 
+                      onChange={e => setCredentials({ 
+                        ...credentials, 
+                        INTERNAL_CATALOG_PATH: e.target.value,
+                        INSERTECH_DATA_PATH: e.target.value
+                      })}
+                      placeholder="data/catalogue-interne.xlsx"
                       className="w-full text-xs p-2.5 border border-border-main rounded-md focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime font-mono bg-white dark:bg-slate-900 text-text-main"
                     />
                   </div>
@@ -319,8 +519,12 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
                     </label>
                     <input 
                       type="text" 
-                      value={credentials.INSERTECH_ARCHIVES_PATH || ""} 
-                      onChange={e => setCredentials({ ...credentials, INSERTECH_ARCHIVES_PATH: e.target.value })}
+                      value={credentials.INTERNAL_ARCHIVES_PATH || credentials.INSERTECH_ARCHIVES_PATH || ""} 
+                      onChange={e => setCredentials({ 
+                        ...credentials, 
+                        INTERNAL_ARCHIVES_PATH: e.target.value,
+                        INSERTECH_ARCHIVES_PATH: e.target.value
+                      })}
                       placeholder="data/archives/"
                       className="w-full text-xs p-2.5 border border-border-main rounded-md focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime font-mono bg-white dark:bg-slate-900 text-text-main"
                     />
@@ -335,7 +539,7 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
                 <div className="p-3 bg-amber-50/50 dark:bg-amber-950/10 rounded-lg border border-amber-200/40 dark:border-amber-900/40 text-xs text-text-muted flex items-start space-x-2">
                   <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                   <p>
-                    <strong>GCSurplus (GC Surplus Canada)</strong> nécessite des identifiants d'accès officiels Insertech pour interroger l'inventaire complet de lots informatiques fermés ou actifs. Sans compte, le moteur bascule en mode de recherche publique.
+                    <strong>GCSurplus (GC Surplus Canada)</strong> permet de renseigner des identifiants d'accès d'acheteur pour interroger l'inventaire complet de lots informatiques fermés ou actifs. Sans compte, le moteur bascule en mode de recherche publique.
                   </p>
                 </div>
 
@@ -349,7 +553,7 @@ export default function SourcesTab({ sources, onPurgeAll }: SourcesTabProps) {
                       type="text" 
                       value={credentials.GCSURPLUS_USERNAME || ""} 
                       onChange={e => setCredentials({ ...credentials, GCSURPLUS_USERNAME: e.target.value })}
-                      placeholder="achats@insertech.ca"
+                      placeholder="achats@votre-organisation.ca"
                       className="w-full text-xs p-2 border border-border-main rounded-md focus:outline-none focus:ring-1 focus:ring-brand-purple dark:focus:ring-brand-lime font-mono bg-white dark:bg-slate-900 text-text-main"
                     />
                   </div>

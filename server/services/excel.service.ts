@@ -100,7 +100,7 @@ export function addSheetWithData(
     width: Math.max(14, Math.min(45, key.length + 4))
   }));
 
-  // Style officiel Insertech pour l'en-tête
+  // Style officiel pour l'en-tête
   const headerRow = worksheet.getRow(1);
   headerRow.font = { name: "Calibri", bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
   headerRow.fill = {
@@ -160,7 +160,7 @@ export async function generateMasterExcel(_targetPath?: string) {
     }
   });
 
-  const dbStr = JSON.stringify(db.evaluations || {});
+  const dbStr = JSON.stringify(db);
   const currentHash = crypto.createHash('md5').update(dbStr).digest('hex');
 
   const excelPath = path.join(EXPORTS_DIR, MASTER_FILE_NAME);
@@ -329,11 +329,18 @@ export async function generateMasterExcel(_targetPath?: string) {
     "Commentaires": lot.comments
   }));
 
-  // 8. Métadonnées Système
+  // 8. Métadonnées Système & Organisation
+  const orgName = db.organization?.name?.trim() || "";
+  const orgLogo = db.organization?.logoUrl?.trim() || "";
+  const orgTagline = db.organization?.tagline?.trim() || "";
+  const appDisplayName = orgName ? `Évaluateur de Prix - ${orgName}` : "Évaluateur de Prix du Marché Reconditionné";
+
   const metadataRows = [
     { "Propriété": "Date d'exportation", "Valeur": new Date().toISOString() },
     { "Propriété": "Date lisible", "Valeur": new Date().toLocaleString("fr-CA") },
-    { "Propriété": "Application", "Valeur": "Évaluateur de Prix Insertech - Version Autonome" },
+    { "Propriété": "Application", "Valeur": appDisplayName },
+    { "Propriété": "Organisation", "Valeur": orgName || "Non spécifiée" },
+    { "Propriété": "Logo", "Valeur": orgLogo || "Par défaut" },
     { "Propriété": "Format de sauvegarde", "Valeur": "Excel Exhaustif (.xlsx)" },
     { "Propriété": "Total des modèles évalués", "Valeur": evaluations.length },
     { "Propriété": "Total des annonces comparables brutes", "Valeur": allComparablesRows.length },
@@ -344,7 +351,7 @@ export async function generateMasterExcel(_targetPath?: string) {
   ];
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Insertech Évaluateur de Prix";
+  workbook.creator = orgName ? `${orgName} - Évaluateur de Prix` : "Évaluateur de Prix du Marché Reconditionné";
   workbook.created = new Date();
 
   const emptyModelRow = [{
@@ -384,6 +391,14 @@ export async function generateMasterExcel(_targetPath?: string) {
   if (customModelsRows.length > 0) addSheetWithData(workbook, "Modèles Personnalisés", customModelsRows);
   if (gcsurplusRows.length > 0) addSheetWithData(workbook, "Lots GCSurplus", gcsurplusRows);
 
+  // Feuille Organisation (Marque Blanche)
+  const orgRows = [
+    { "Propriété": "Nom de l'organisation", "Valeur": orgName },
+    { "Propriété": "URL ou Données du Logo", "Valeur": orgLogo },
+    { "Propriété": "Slogan / Description", "Valeur": orgTagline }
+  ];
+  addSheetWithData(workbook, "Organisation", orgRows);
+
   addSheetWithData(workbook, "Métadonnées", metadataRows);
 
   await workbook.xlsx.writeFile(excelPath);
@@ -402,7 +417,7 @@ export async function generateMasterExcel(_targetPath?: string) {
 
 export async function generateTemplateExcel(): Promise<Buffer> {
   const templateWb = new ExcelJS.Workbook();
-  templateWb.creator = "Insertech Évaluateur de Prix";
+  templateWb.creator = "Évaluateur de Prix du Marché Reconditionné";
   templateWb.created = new Date();
 
   const sampleRows = [
@@ -445,6 +460,14 @@ export async function generateTemplateExcel(): Promise<Buffer> {
   ];
 
   addSheetWithData(templateWb, "Inventaire Global", sampleRows);
+
+  const templateOrgRows = [
+    { "Propriété": "Nom de l'organisation", "Valeur": "Votre Entreprise ou Organisme" },
+    { "Propriété": "URL ou Données du Logo", "Valeur": "" },
+    { "Propriété": "Slogan / Description", "Valeur": "Spécialiste du réemploi et reconditionnement informatique" }
+  ];
+  addSheetWithData(templateWb, "Organisation", templateOrgRows);
+
   const buffer = await templateWb.xlsx.writeBuffer();
   return Buffer.from(buffer);
 }
@@ -460,10 +483,14 @@ export function processImportPreview(workbook: ExcelJS.Workbook) {
   const sampleModels: { model: string; category: string; price: number }[] = [];
 
   workbook.worksheets.forEach(worksheet => {
+    const lower = worksheet.name.toLowerCase();
+    if (lower.includes("organisation") || lower.includes("organization") || lower.includes("métadonnée") || lower.includes("metadonnee") || lower.includes("metadata")) {
+      return;
+    }
+
     const rows = worksheetToJson(worksheet);
     totalRows += rows.length;
 
-    const lower = worksheet.name.toLowerCase();
     if (lower.includes("comparable") || lower.includes("listing")) hasComparables = true;
     if (lower.includes("historique") || lower.includes("history")) hasHistory = true;
     if (lower.includes("audit") || lower.includes("journal")) hasAudit = true;
@@ -532,8 +559,69 @@ export async function executeImportExcel(workbook: ExcelJS.Workbook) {
           const l = w.name.toLowerCase();
           return !l.includes("comparable") && !l.includes("historique") && !l.includes("audit") &&
                  !l.includes("écart") && !l.includes("ecart") && !l.includes("métadonnée") &&
-                 !l.includes("metadonnee") && !l.includes("gcsurplus") && !l.includes("personnalisé") && !l.includes("personnalise");
+                 !l.includes("metadonnee") && !l.includes("gcsurplus") && !l.includes("personnalisé") && !l.includes("personnalise") &&
+                 !l.includes("organisation") && !l.includes("organization");
         });
+
+    // 0. Restauration de l'organisation & image de marque (Marque Blanche)
+    let importedOrgName: string | undefined;
+    let importedOrgLogo: string | undefined;
+    let importedOrgTagline: string | undefined;
+
+    const orgSheet = worksheets.find(w => {
+      const l = w.name.toLowerCase();
+      return l.includes("organisation") || l.includes("organization");
+    });
+    if (orgSheet) {
+      const rows = worksheetToJson(orgSheet);
+      rows.forEach(r => {
+        const prop = String(r["Propriété"] || r["Propriete"] || r["Property"] || r["Clé"] || r["Cle"] || "").trim().toLowerCase();
+        const val = r["Valeur"] || r["Value"] || "";
+        if (typeof val === "string" && val.trim()) {
+          if (prop.includes("nom") || prop.includes("name") || prop.includes("organisation") || prop.includes("entreprise")) {
+            importedOrgName = val.trim();
+          } else if (prop.includes("logo") || prop.includes("image")) {
+            importedOrgLogo = val.trim();
+          } else if (prop.includes("slogan") || prop.includes("tagline") || prop.includes("description")) {
+            importedOrgTagline = val.trim();
+          }
+        }
+      });
+    }
+
+    // Repli sur les Métadonnées si présent
+    const metaSheet = worksheets.find(w => {
+      const l = w.name.toLowerCase();
+      return l.includes("métadonnée") || l.includes("metadonnee") || l.includes("metadata");
+    });
+    if (metaSheet) {
+      const rows = worksheetToJson(metaSheet);
+      rows.forEach(r => {
+        const prop = String(r["Propriété"] || r["Propriete"] || r["Property"] || "").trim().toLowerCase();
+        const val = r["Valeur"] || r["Value"] || "";
+        if (typeof val === "string" && val.trim()) {
+          if (!importedOrgName && (prop.includes("organisation") || prop.includes("organization") || prop.includes("entreprise") || prop.includes("société") || prop.includes("societe"))) {
+            if (val.trim().toLowerCase() !== "non spécifiée" && val.trim().toLowerCase() !== "non specifiee") {
+              importedOrgName = val.trim();
+            }
+          }
+          if (!importedOrgLogo && prop.includes("logo")) {
+            if (val.trim().toLowerCase() !== "par défaut" && val.trim().toLowerCase() !== "par defaut") {
+              importedOrgLogo = val.trim();
+            }
+          }
+        }
+      });
+    }
+
+    if (importedOrgName !== undefined || importedOrgLogo !== undefined || importedOrgTagline !== undefined) {
+      if (!db.organization) {
+        db.organization = { name: "", logoUrl: "" };
+      }
+      if (importedOrgName !== undefined) db.organization.name = importedOrgName;
+      if (importedOrgLogo !== undefined) db.organization.logoUrl = importedOrgLogo;
+      if (importedOrgTagline !== undefined) db.organization.tagline = importedOrgTagline;
+    }
 
     sheetsToProcessForModels.forEach(sheet => {
       const rows = worksheetToJson(sheet);

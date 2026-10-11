@@ -129,7 +129,7 @@ export function listenOnAvailablePort(app: express.Express, port: number, host =
 
   const server = app.listen(port, effectiveHost, () => {
     console.log(`\n=============================================================`);
-    console.log(`🚀 SERVEUR ÉVALUATEUR INSERTECH DÉMARRÉ AVEC SUCCÈS !`);
+    console.log(`🚀 SERVEUR ÉVALUATEUR DE PRIX DÉMARRÉ AVEC SUCCÈS !`);
     console.log(`=============================================================`);
     console.log(`💻 Accès Ordinateur Local (Desktop) : http://127.0.0.1:${port}`);
     console.log(`🛡️ Sécurité : Interface de bouclage locale stricte ${effectiveHost} (Zéro Pare-feu)`);

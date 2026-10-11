@@ -28,13 +28,38 @@ router.get("/api/health", (_req, res) => {
 
 // Version applicative
 router.get("/api/version", (_req, res) => {
+  const db = readDB();
+  const name = db.organization?.name?.trim()
+    ? `Évaluateur de Prix - ${db.organization.name.trim()}`
+    : "Évaluateur de Prix du Marché Reconditionné";
   res.json({
     success: true,
     version: APP_VERSION,
     channel: "Stable",
     releaseDate: "2026-10-11",
-    name: "Évaluateur de Prix Insertech"
+    name
   });
+});
+
+// Configuration de l'Organisation (Marque Blanche)
+router.get("/api/organization", (_req, res) => {
+  const db = readDB();
+  res.json({
+    success: true,
+    organization: db.organization || { name: "", logoUrl: "", tagline: "" }
+  });
+});
+
+router.post("/api/organization", (req, res) => {
+  const db = readDB();
+  const org = req.body.organization || {};
+  db.organization = {
+    name: typeof org.name === "string" ? org.name.trim() : "",
+    logoUrl: typeof org.logoUrl === "string" ? org.logoUrl.trim() : "",
+    tagline: typeof org.tagline === "string" ? org.tagline.trim() : ""
+  };
+  writeDB(db);
+  res.json({ success: true, organization: db.organization });
 });
 
 // Vérification de mise à jour sur GitHub
@@ -102,7 +127,7 @@ router.post("/api/selectors/health-check", async (req, res) => {
 
 // Arrêt gracieux du serveur (déclenché par le launcher natif ou par l'UI)
 router.post("/api/system/shutdown", async (req, res) => {
-  const expectedToken = process.env.INSERTECH_SHUTDOWN_TOKEN;
+  const expectedToken = process.env.APP_SHUTDOWN_TOKEN || process.env.INSERTECH_SHUTDOWN_TOKEN;
   const providedToken = (req.headers["x-shutdown-token"] as string) || (req.query.token as string);
 
   if (expectedToken && providedToken !== expectedToken) {

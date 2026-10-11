@@ -38,7 +38,7 @@ export function healSelectors(site: "eBay" | "backMarket") {
     status: "HEALED",
     source: "Gist",
     lastChecked: new Date().toISOString(),
-    details: `Panne détectée et auto-corrigée ! Sélecteurs reconfigurés automatiquement depuis le registre externe Insertech-Gist (Version du ${new Date().toLocaleDateString('fr-CA')}).`
+    details: `Panne détectée et auto-corrigée ! Sélecteurs reconfigurés automatiquement depuis le registre externe de sélecteurs (Version du ${new Date().toLocaleDateString('fr-CA')}).`
   };
 
   writeDB(db);

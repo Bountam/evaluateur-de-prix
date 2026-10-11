@@ -16,9 +16,10 @@ interface SyntheseTabProps {
   evaluations: Record<string, ModelEvaluation>;
   historicalLog: HistoricalLogEntry[];
   onNavigateToTab: (tab: string) => void;
+  organization?: { name?: string; logoUrl?: string; tagline?: string };
 }
 
-export default function SyntheseTab({ evaluations, historicalLog, onNavigateToTab }: SyntheseTabProps) {
+export default function SyntheseTab({ evaluations, historicalLog, onNavigateToTab, organization }: SyntheseTabProps) {
   const allModels = Object.values(evaluations);
   const totalModels = allModels.length;
 
@@ -55,7 +56,7 @@ export default function SyntheseTab({ evaluations, historicalLog, onNavigateToTa
         <div className="relative z-10 max-w-4xl">
           <div className="flex items-center space-x-2 text-[10px] font-mono font-bold uppercase text-brand-purple dark:text-brand-lime tracking-wider mb-2">
             <ShieldAlert className="w-3.5 h-3.5" />
-            <span>DIRECTIVE COMPTABLE ET RÉGLEMENTAIRE INSERTECH</span>
+            <span>DIRECTIVE COMPTABLE ET RÉGLEMENTAIRE {organization?.name ? organization.name.toUpperCase() : "D'ATELIER"}</span>
           </div>
           <h2 className="text-xl md:text-2xl font-serif italic tracking-tight text-white mb-2">
             "Ne jamais inventer de prix, ni utiliser de formules théoriques de dépréciation."

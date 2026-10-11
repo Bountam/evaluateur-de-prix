@@ -14,7 +14,8 @@ export type ListingSource =
   | 'Dell Refurbished Canada'
   | 'IT Refurbs Canada'
   | 'Canada Computers (Refurbished)'
-  | 'SEAO (Appels d\'offres & Lots publics)'
+  | 'Catalogue Interne'
+  | 'Archives d\'Atelier'
   | 'Insertech (Interne)'
   | 'Insertech (Archives)';
 
@@ -148,6 +149,14 @@ export interface HistoricalLogEntry {
   operator: string;
 }
 
+// === Configuration d'Organisation (Marque Blanche) ===
+
+export interface OrganizationConfig {
+  name: string;
+  logoUrl?: string;
+  tagline?: string;
+}
+
 // === État global de l'application ===
 
 export interface AppState {
@@ -160,4 +169,5 @@ export interface AppState {
   exportPath?: string;
   customModels?: { category: string; modelName: string; addedAt?: string; configuration?: string }[];
   credentials?: Record<string, string>;
+  organization?: OrganizationConfig;
 }

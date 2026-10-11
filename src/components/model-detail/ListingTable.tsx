@@ -128,7 +128,7 @@ export const ListingTable: React.FC<ListingTableProps> = ({
                       String(listing.source).includes("eBay") ? "bg-blue-50 text-blue-800 border border-blue-100" :
                       String(listing.source).includes("Back Market") ? "bg-purple-50 text-purple-800 border border-purple-100" :
                       String(listing.source).includes("GCSurplus") ? "bg-emerald-50 text-emerald-800 border border-emerald-100" :
-                      String(listing.source).includes("Insertech") ? "bg-amber-50 text-amber-800 border border-amber-100" :
+                      (String(listing.source).includes("Catalogue") || String(listing.source).includes("Archive") || String(listing.source).includes("Interne") || String(listing.source).includes("Insertech")) ? "bg-amber-50 text-amber-800 border border-amber-100" :
                       String(listing.source).includes("Amazon") ? "bg-orange-50 text-orange-800 border border-orange-100" :
                       String(listing.source).includes("BestBuy") ? "bg-blue-50 text-blue-800 border border-blue-100" :
                       String(listing.source).includes("Newegg") ? "bg-red-50 text-red-800 border border-red-100" :

@@ -29,6 +29,8 @@ sea-prep.blob
 # Fichiers binaires temporaires et archives distribuables
 node-v22.14.0-win-x64/
 evaluateur-insertech-portable.zip
+evaluateur-de-prix-portable.zip
+*.zip
 evaluateur-insertech-portable/dist/
 evaluateur-insertech-portable/node.exe
 evaluateur-insertech-portable/chromium/

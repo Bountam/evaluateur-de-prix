@@ -12,7 +12,7 @@ export function getIsShuttingDown(): boolean {
 }
 
 /**
- * Exécute la séquence d'arrêt ordonné de l'application Insertech :
+ * Exécute la séquence d'arrêt ordonné de l'application :
  * 1. Arrêt des réceptions HTTP
  * 2. Fermeture propre du navigateur Chromium et des processus enfants Windows
  * 3. Checkpoint WAL SQLite et fermeture de la base

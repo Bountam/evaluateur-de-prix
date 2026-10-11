@@ -93,7 +93,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion, setAppVersion] = useState("1.6.0");
+  const [appVersion, setAppVersion] = useState("1.7.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Opérateur & Modals de Session ---
@@ -272,6 +272,44 @@ export default function App() {
   const handleSelectModel = (model: string, category: string) => {
     setSelectedModel(model);
     setSelectedCategory(category);
+  };
+
+  // Handle 1-Click Quick Add from Sidebar Search or Suggestions
+  const handleQuickAddModel = async (cat: string, modelName: string, specs?: string) => {
+    try {
+      const resp = await fetch("/api/models/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: cat,
+          modelName,
+          configuration: specs || "16 Go RAM, 512 Go SSD"
+        })
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.success) {
+        if (data.customModels && Array.isArray(data.customModels)) {
+          setCustomModels(data.customModels);
+        }
+        if (data.evaluations) {
+          setEvaluations(data.evaluations);
+        }
+        const normCat = normalizeCategory(cat);
+        const catLower = normCat.toLowerCase();
+        if (catLower.includes("desktop") || catLower.includes("tour") || catLower.includes("bureau")) {
+          setActiveTab("desktops");
+        } else if (catLower.includes("iphone") || catLower.includes("téléphone") || catLower.includes("smartphone")) {
+          setActiveTab("iphone");
+        } else {
+          setActiveTab("portables");
+        }
+        handleSelectModel(modelName, normCat);
+        handleScrapeModel(modelName, false, normCat);
+      }
+    } catch (e) {
+      console.error("Quick add model error:", e);
+    }
   };
 
   // Trigger Live Scraping or Simulation of HTML Changes (Auto-Heal fallback)
@@ -830,6 +868,7 @@ export default function App() {
             evaluations={evaluations}
             customModels={customModels}
             onOpenAddModel={() => setIsAddModalOpen(true)}
+            onQuickAddModel={handleQuickAddModel}
             onScrapeModel={handleScrapeModel}
             scrapingModels={scrapingModels}
             selectedCategory={selectedCategory}
@@ -853,6 +892,7 @@ export default function App() {
             evaluations={evaluations}
             customModels={customModels}
             onOpenAddModel={() => setIsAddModalOpen(true)}
+            onQuickAddModel={handleQuickAddModel}
             onScrapeModel={handleScrapeModel}
             scrapingModels={scrapingModels}
             selectedCategory={selectedCategory}
@@ -876,6 +916,7 @@ export default function App() {
             evaluations={evaluations}
             customModels={customModels}
             onOpenAddModel={() => setIsAddModalOpen(true)}
+            onQuickAddModel={handleQuickAddModel}
             onScrapeModel={handleScrapeModel}
             scrapingModels={scrapingModels}
             selectedCategory={selectedCategory}

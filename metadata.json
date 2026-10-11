@@ -1,6 +1,6 @@
 {
   "name": "Évaluateur de Prix",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Application d'automatisation et d'évaluation de prix d'équipements informatiques d'occasion (eBay, Back Market, Reebelo, Amazon Renewed, Best Buy, Kijiji, GCSurplus, Facebook Marketplace, Refurbisseurs canadiens) avec auto-guérison, marque blanche et exportation Excel.",
   "requestFramePermissions": [],
   "majorCapabilities": []

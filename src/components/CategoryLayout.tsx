@@ -20,6 +20,7 @@ interface CategoryLayoutProps {
   scrapeProgress: number;
   concurrency: number;
   onOpenConcurrencyModal: () => void;
+  onQuickAddModel?: (category: string, modelName: string, specs?: string) => Promise<void>;
 }
 
 export default function CategoryLayout({
@@ -39,7 +40,8 @@ export default function CategoryLayout({
   isScraping,
   scrapeProgress,
   concurrency,
-  onOpenConcurrencyModal
+  onOpenConcurrencyModal,
+  onQuickAddModel
 }: CategoryLayoutProps) {
   return (
     <div className="flex-1 flex flex-col md:flex-row border border-[#DCDDE1] rounded-lg bg-white shadow-sm overflow-hidden min-h-[500px]" id={id}>
@@ -50,6 +52,7 @@ export default function CategoryLayout({
         filterCategories={filterCategories}
         customModels={customModels}
         onOpenAddModel={onOpenAddModel}
+        onQuickAddModel={onQuickAddModel}
         onScrapeModel={onScrapeModel}
         scrapingModels={scrapingModels}
       />

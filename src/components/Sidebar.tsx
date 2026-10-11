@@ -4,6 +4,7 @@ import { Search, Monitor, Laptop, Smartphone, ChevronRight, PlusCircle, RefreshC
 import { ModelEvaluation } from "../types";
 import HelpTooltip from "./common/HelpTooltip";
 import { HELP_CONTENT } from "../constants/helpContent";
+import { parseModelRawString, searchReferenceModels } from "../utils/modelParser";
 
 interface SidebarProps {
   selectedModel: string;
@@ -12,6 +13,7 @@ interface SidebarProps {
   filterCategories?: string[];
   customModels?: { category: string; modelName: string }[];
   onOpenAddModel?: () => void;
+  onQuickAddModel?: (category: string, modelName: string, specs?: string) => Promise<void>;
   onScrapeModel?: (model: string, simulateFailure: boolean, category?: string) => Promise<void>;
   scrapingModels?: Record<string, { isScraping: boolean; progress: number; logs: string[] }>;
 }
@@ -23,6 +25,7 @@ export default function Sidebar({
   filterCategories, 
   customModels, 
   onOpenAddModel,
+  onQuickAddModel,
   onScrapeModel,
   scrapingModels
 }: SidebarProps) {
@@ -112,6 +115,32 @@ export default function Sidebar({
     return false;
   });
 
+  const exactMatchExists = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return mergedCategories.some(cat => cat.models.some(m => m.toLowerCase() === q));
+  }, [searchQuery, mergedCategories]);
+
+  const parsedSearch = useMemo(() => {
+    if (searchQuery.trim().length < 2) return null;
+    return parseModelRawString(searchQuery);
+  }, [searchQuery]);
+
+  const searchSuggestions = useMemo(() => {
+    if (searchQuery.trim().length < 2) return [];
+    const allExisting = new Set(mergedCategories.flatMap(c => c.models.map(m => m.toLowerCase())));
+    return searchReferenceModels(searchQuery, 4).filter(ref => !allExisting.has(ref.name.toLowerCase()));
+  }, [searchQuery, mergedCategories]);
+
+  const handleInlineAdd = async (category: string, modelName: string, specs?: string) => {
+    if (onQuickAddModel) {
+      await onQuickAddModel(category, modelName, specs);
+      setSearchQuery("");
+    } else if (onOpenAddModel) {
+      onOpenAddModel();
+    }
+  };
+
   return (
     <aside className="w-72 bg-white dark:bg-slate-900 border-r border-[#DCDDE1] dark:border-slate-800 flex flex-col h-full shrink-0" id="sidebar-container">
       {/* Search & Add Header */}
@@ -143,6 +172,56 @@ export default function Sidebar({
           </div>
         )}
       </div>
+
+      {/* Inline Quick Add Card & Reference Suggestions */}
+      {searchQuery.trim().length >= 2 && !exactMatchExists && parsedSearch && (
+        <div className="p-3 border-b border-[#DCDDE1] dark:border-slate-800 bg-brand-purple/5 dark:bg-brand-lime/10 space-y-2 animate-fadeIn shrink-0" id="inline-quick-add-banner">
+          <div>
+            <div className="text-[11px] font-bold text-slate-800 dark:text-slate-100 flex items-center space-x-1">
+              <span>✨ Nouveau modèle détecté</span>
+            </div>
+            <div className="text-xs font-bold text-brand-purple dark:text-brand-lime font-mono mt-0.5">
+              {parsedSearch.cleanModelName}
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Catégorie : <span className="font-semibold text-slate-700 dark:text-slate-300">{parsedSearch.category}</span>
+              {parsedSearch.specs.fullConfiguration && (
+                <span className="block italic text-[9px] text-slate-400 mt-0.5">Specs : {parsedSearch.specs.fullConfiguration}</span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleInlineAdd(parsedSearch.category, parsedSearch.cleanModelName, parsedSearch.specs.fullConfiguration)}
+            className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded bg-brand-purple hover:bg-[#3d0877] dark:bg-brand-lime dark:hover:opacity-90 text-white dark:text-slate-900 font-bold text-xs shadow transition-all cursor-pointer"
+            id="btn-inline-quick-add"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Ajouter et surveiller en 1 clic</span>
+          </button>
+        </div>
+      )}
+
+      {searchQuery.trim().length >= 2 && searchSuggestions.length > 0 && (
+        <div className="p-2.5 border-b border-[#DCDDE1] dark:border-slate-800 bg-[#F8F9FA] dark:bg-slate-800/40 text-[10px] shrink-0" id="search-suggestions-container">
+          <span className="text-[#7F8C8D] dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">
+            💡 Modèles suggérés du marché ({searchSuggestions.length}) :
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {searchSuggestions.map(sug => (
+              <button
+                key={sug.name}
+                type="button"
+                onClick={() => handleInlineAdd(sug.category, sug.name)}
+                className="px-2 py-0.5 rounded text-[10px] font-mono bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-brand-purple dark:hover:border-brand-lime text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center space-x-1"
+                title={`Ajouter ${sug.name} (${sug.category})`}
+              >
+                <span>+ {sug.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Model List */}
       <div className="flex-1 overflow-y-auto select-none divide-y divide-[#DCDDE1]" id="sidebar-categories">

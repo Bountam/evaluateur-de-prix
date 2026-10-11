@@ -3,6 +3,7 @@ import { sqliteDb } from "../database/connection.ts";
 import { readDB, writeDB } from "../database/repository.ts";
 import { getCredentials, saveCredentials } from "../../scrapers/credentials.ts";
 import { checkApplicationUpdate, performApplicationUpdate, UpdateValidationError } from "../services/update.service.ts";
+import { performGracefulShutdown } from "../services/lifecycle.service.ts";
 import { checkSelectorsHealth, healSelectors } from "../services/healing.service.ts";
 import { APP_VERSION } from "../config/version.ts";
 
@@ -31,7 +32,7 @@ router.get("/api/version", (_req, res) => {
     success: true,
     version: APP_VERSION,
     channel: "Stable",
-    releaseDate: "2026-10-10",
+    releaseDate: "2026-10-11",
     name: "Évaluateur de Prix Insertech"
   });
 });
@@ -99,11 +100,26 @@ router.post("/api/selectors/health-check", async (req, res) => {
   res.json({ success: true, status });
 });
 
-// Auto-réparation des sélecteurs CSS
-router.post("/api/selectors/heal", async (req, res) => {
-  const site = req.body.site as "eBay" | "backMarket";
-  const result = healSelectors(site);
-  res.json({ success: true, ...result });
+// Arrêt gracieux du serveur (déclenché par le launcher natif ou par l'UI)
+router.post("/api/system/shutdown", async (req, res) => {
+  const expectedToken = process.env.INSERTECH_SHUTDOWN_TOKEN;
+  const providedToken = (req.headers["x-shutdown-token"] as string) || (req.query.token as string);
+
+  if (expectedToken && providedToken !== expectedToken) {
+    res.status(403).json({ success: false, error: "Jeton d'arrêt non autorisé." });
+    return;
+  }
+
+  res.json({ success: true, message: "Arrêt gracieux du serveur en cours..." });
+
+  setTimeout(() => {
+    performGracefulShutdown("LAUNCHER").then(() => {
+      process.exit(0);
+    }).catch((err) => {
+      console.error("Erreur lors de l'arrêt gracieux:", err);
+      process.exit(1);
+    });
+  }, 100);
 });
 
 export default router;

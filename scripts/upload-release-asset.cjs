@@ -34,16 +34,38 @@ async function main() {
     'Accept': 'application/vnd.github+json'
   };
 
-  // 2. Récupération de la release
+  // 2. Récupération ou création de la release
   console.log(`🔍 Recherche de la release ${tag} sur GitHub...`);
-  const relRes = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, { headers });
-  if (!relRes.ok) {
+  let relRes = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, { headers });
+  let releaseData;
+
+  if (relRes.status === 404) {
+    console.log(`✨ Release ${tag} inexistante. Création automatique de la release sur GitHub...`);
+    const createRes = await fetch(`https://api.github.com/repos/${repo}/releases`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tag_name: tag,
+        name: `Évaluateur Insertech ${tag}`,
+        body: `### Nouveautés de la version ${tag} :\n- Nouveau lanceur natif Windows unique (\`Évaluateur Insertech.exe\`) avec icône intégrée.\n- Isolation complète de l'arborescence technique dans le sous-dossier \`app/\`.\n- Lancement 100% silencieux dans Microsoft Edge en mode autonome.\n- Nouvelle icône flat minimaliste transparente.\n- Gestion robuste de l'arrêt gracieux et protection anti-instances multiples via Mutex.`,
+        draft: false,
+        prerelease: false
+      })
+    });
+    if (!createRes.ok) {
+      console.error(`❌ Échec de la création de la release (HTTP ${createRes.status}):`, await createRes.text());
+      process.exit(1);
+    }
+    releaseData = await createRes.json();
+    console.log(`✔️ Release ${tag} créée avec succès (ID: ${releaseData.id})`);
+  } else if (!relRes.ok) {
     console.error(`❌ Échec de la récupération de la release (HTTP ${relRes.status}):`, await relRes.text());
     process.exit(1);
+  } else {
+    releaseData = await relRes.json();
+    console.log(`✔️ Release identifiée (ID: ${releaseData.id})`);
   }
-  const releaseData = await relRes.json();
   const releaseId = releaseData.id;
-  console.log(`✔️ Release identifiée (ID: ${releaseId})`);
 
   // Supprimer un asset existant du même nom si présent
   const existingAsset = (releaseData.assets || []).find(a => a.name === 'evaluateur-insertech-portable.zip');

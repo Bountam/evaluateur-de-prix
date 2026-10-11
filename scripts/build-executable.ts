@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const PORTABLE_DIR = path.join(ROOT_DIR, 'evaluateur-insertech-portable');
+const APP_DIR = path.join(PORTABLE_DIR, 'app');
 
 const localNodeDir = path.join(ROOT_DIR, 'node-v22.14.0-win-x64');
 if (fs.existsSync(localNodeDir)) {
@@ -69,30 +70,31 @@ if (fs.existsSync(PORTABLE_DIR)) {
   } catch {}
 }
 fs.mkdirSync(PORTABLE_DIR, { recursive: true });
+fs.mkdirSync(APP_DIR, { recursive: true });
 
-// Copier les fichiers distribuables dist -> portable/dist
-copyFolderRecursiveSync(DIST_DIR, path.join(PORTABLE_DIR, 'dist'));
+// Copier les fichiers distribuables dist -> portable/app/dist
+copyFolderRecursiveSync(DIST_DIR, path.join(APP_DIR, 'dist'));
 
-// Copier les dépendances node_modules dans le package portable (en excluant les outils de dev volumineux)
+// Copier les dépendances node_modules dans le sous-dossier technique app/
 const nodeModulesDir = path.join(ROOT_DIR, 'node_modules');
+const DEV_DEPS_TO_EXCLUDE = [
+  'typescript',
+  '@types',
+  'esbuild',
+  '@esbuild',
+  'vite',
+  '@vitejs',
+  'vitest',
+  '@vitest',
+  'rollup',
+  '@rollup',
+  'terser',
+  '.bin'
+];
 if (fs.existsSync(nodeModulesDir)) {
   try {
-    console.log('📦 Copie optimisée des dépendances node_modules dans le package portable...');
-    const DEV_DEPS_TO_EXCLUDE = [
-      'typescript',
-      '@types',
-      'esbuild',
-      '@esbuild',
-      'vite',
-      '@vitejs',
-      'vitest',
-      '@vitest',
-      'rollup',
-      '@rollup',
-      'terser',
-      '.bin'
-    ];
-    copyFolderRecursiveSync(nodeModulesDir, path.join(PORTABLE_DIR, 'node_modules'), DEV_DEPS_TO_EXCLUDE);
+    console.log('📦 Copie optimisée des dépendances node_modules dans app/node_modules...');
+    copyFolderRecursiveSync(nodeModulesDir, path.join(APP_DIR, 'node_modules'), DEV_DEPS_TO_EXCLUDE);
   } catch (err: any) {
     console.warn('⚠️ Remarque lors de la copie de node_modules:', err?.message || err);
   }
@@ -103,50 +105,46 @@ const headerGeneratorData = path.join(ROOT_DIR, 'node_modules', 'header-generato
 if (fs.existsSync(headerGeneratorData)) {
   console.log('📄 Copie des fichiers de données header-generator (got-scraping)...');
   copyFolderRecursiveSync(headerGeneratorData, path.join(DIST_DIR, 'data_files'));
-  copyFolderRecursiveSync(headerGeneratorData, path.join(PORTABLE_DIR, 'dist', 'data_files'));
+  copyFolderRecursiveSync(headerGeneratorData, path.join(APP_DIR, 'dist', 'data_files'));
 }
 
-// Copier public -> portable/public (manifest, sw.js)
+// Copier public -> portable/app/public (manifest, sw.js, favicons)
 const publicDir = path.join(ROOT_DIR, 'public');
 if (fs.existsSync(publicDir)) {
-  copyFolderRecursiveSync(publicDir, path.join(PORTABLE_DIR, 'public'));
+  copyFolderRecursiveSync(publicDir, path.join(APP_DIR, 'public'));
 }
 
-// Copier db.json initial si disponible
+// Copier db.json initial si disponible dans app/
 const dbPath = path.join(ROOT_DIR, 'db.json');
 if (fs.existsSync(dbPath)) {
-  fs.copyFileSync(dbPath, path.join(PORTABLE_DIR, 'db.json'));
+  fs.copyFileSync(dbPath, path.join(APP_DIR, 'db.json'));
 }
 
-// Copier loading.html
-const loadingPath = path.join(PORTABLE_DIR, 'loading.html');
+// Copier loading.html dans app/
+const loadingPath = path.join(APP_DIR, 'loading.html');
 if (fs.existsSync(path.join(ROOT_DIR, 'loading.html'))) {
   fs.copyFileSync(path.join(ROOT_DIR, 'loading.html'), loadingPath);
 }
 
-// Copier les icônes de l'application (app.ico et app-icon.png)
-const appIcoPath = path.join(ROOT_DIR, 'app.ico');
-if (fs.existsSync(appIcoPath)) {
-  fs.copyFileSync(appIcoPath, path.join(PORTABLE_DIR, 'app.ico'));
-}
-const appPngPath = path.join(ROOT_DIR, 'app-icon.png');
+// Copier les icônes de l'application dans app/ (pour PWA / affichage web, JAMAIS en racine)
+const appPngPath = path.join(ROOT_DIR, 'assets', 'icon', 'app-icon.png');
 if (fs.existsSync(appPngPath)) {
-  fs.copyFileSync(appPngPath, path.join(PORTABLE_DIR, 'app-icon.png'));
+  fs.copyFileSync(appPngPath, path.join(APP_DIR, 'app-icon.png'));
 }
 
-// Copier node.exe pour garantir le fonctionnement 100% autonome sans dépendance Node.js système
+// Copier node.exe dans app/ pour garantir le fonctionnement 100% autonome
 try {
   const nodeExePath = process.execPath;
   if (fs.existsSync(nodeExePath) && nodeExePath.toLowerCase().endsWith('node.exe')) {
-    console.log(`🟢 Copie de node.exe autonome depuis ${nodeExePath}...`);
-    fs.copyFileSync(nodeExePath, path.join(PORTABLE_DIR, 'node.exe'));
+    console.log(`🟢 Copie de node.exe autonome dans app/node.exe depuis ${nodeExePath}...`);
+    fs.copyFileSync(nodeExePath, path.join(APP_DIR, 'node.exe'));
   }
 } catch (err) {
   console.warn('⚠️ Impossible de copier automatiquement node.exe:', err);
 }
 
-// Copier ou embarquer le navigateur Chromium Playwright pour fonctionnement 100% hors-ligne
-const portableChromiumDir = path.join(PORTABLE_DIR, 'chromium');
+// Copier ou embarquer le navigateur Chromium Playwright dans app/chromium
+const portableChromiumDir = path.join(APP_DIR, 'chromium');
 fs.mkdirSync(portableChromiumDir, { recursive: true });
 
 const localChromium = path.join(ROOT_DIR, 'chromium');
@@ -173,252 +171,40 @@ if (fs.existsSync(localChromium) && fs.readdirSync(localChromium).length > 0) {
   }
 }
 
-// 4. Générer le fichier VBScript de lancement 100% silencieux sans console noire
-console.log('🎨 4/4 - Génération du lanceur GUI autonome sans console noire...');
-const vbsContent = `Set WshShell = CreateObject("WScript.Shell")
-Set fso = CreateObject("Scripting.FileSystemObject")
+// 4. Compiler le lanceur natif Windows C# avec icône intégrée
+console.log('🎨 4/4 - Compilation du lanceur natif avec icône intégrée...');
+const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
+const launcherSource = path.join(ROOT_DIR, 'launcher', 'Launcher.cs');
+const iconPath = path.join(ROOT_DIR, 'assets', 'icon', 'app.ico');
+const targetExe = path.join(PORTABLE_DIR, 'Évaluateur Insertech.exe');
 
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-WshShell.CurrentDirectory = scriptDir
-
-WshShell.Environment("PROCESS")("NODE_ENV") = "production"
-WshShell.Environment("PROCESS")("HOST") = "127.0.0.1"
-
-' 1. Arrêter uniquement l'instance précédente de cette application si .server.pid existe
-pidFile = scriptDir & "\\.server.pid"
-portFile = scriptDir & "\\.server.port"
-
-If fso.FileExists(pidFile) Then
-  On Error Resume Next
-  Set tsOld = fso.OpenTextFile(pidFile, 1)
-  oldPid = Trim(tsOld.ReadAll)
-  tsOld.Close
-  If IsNumeric(oldPid) And Len(oldPid) > 0 Then
-    WshShell.Run "taskkill /f /pid " & oldPid & " /t", 0, True
-  End If
-  fso.DeleteFile pidFile, True
-  On Error GoTo 0
-End If
-If fso.FileExists(portFile) Then
-  On Error Resume Next
-  fso.DeleteFile portFile, True
-  On Error GoTo 0
-End If
-WScript.Sleep 500
-
-If fso.FileExists(scriptDir & "\\chromium\\chrome.exe") Then
-  WshShell.Environment("PROCESS")("CHROMIUM_PATH") = scriptDir & "\\chromium\\chrome.exe"
-End If
-
-Dim nodeCmd
-nodeCmd = ""
-
-If fso.FileExists(scriptDir & "\\node.exe") Then
-  nodeCmd = """" & scriptDir & "\\node.exe"""
-Else
-  nodeCmd = "node"
-End If
-
-On Error Resume Next
-WshShell.Run nodeCmd & " """ & scriptDir & "\\dist\\server.js""", 0, False
-If Err.Number <> 0 Then
-  MsgBox "Impossible de démarrer le serveur d'évaluation Insertech." & vbCrLf & vbCrLf & _
-         "Raison : L'exécutable Node.js est introuvable." & vbCrLf & _
-         "Veuillez copier 'node.exe' dans ce dossier portable ou installer Node.js sur le poste.", 16, "Évaluateur Insertech - Erreur Démarrage"
-  WScript.Quit 1
-End If
-
-' Attente active que le serveur soit prêt à répondre et détection dynamique du port
-Dim http, ready, waitCount, targetPort
-ready = False
-waitCount = 0
-targetPort = "3000"
-
-Do While Not ready And waitCount < 60
-  WScript.Sleep 500
-  waitCount = waitCount + 1
-
-  If fso.FileExists(portFile) Then
-    On Error Resume Next
-    Set tsPort = fso.OpenTextFile(portFile, 1)
-    readPort = Trim(tsPort.ReadAll)
-    tsPort.Close
-    If IsNumeric(readPort) And Len(readPort) > 0 Then
-      targetPort = readPort
-    End If
-    On Error GoTo 0
-  End If
-
-  On Error Resume Next
-  Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-  http.Open "GET", "http://127.0.0.1:" & targetPort & "/api/version", False
-  http.setTimeouts 500, 500, 500, 500
-  http.Send
-  If Err.Number = 0 Then
-    If http.Status = 200 Then
-      ready = True
-    End If
-  End If
-  On Error GoTo 0
-Loop
-
-Dim edge32, edge64, edgePath
-edge32 = WshShell.ExpandEnvironmentStrings("%ProgramFiles(x86)%") & "\\Microsoft\\Edge\\Application\\msedge.exe"
-edge64 = WshShell.ExpandEnvironmentStrings("%ProgramFiles%") & "\\Microsoft\\Edge\\Application\\msedge.exe"
-
-If fso.FileExists(edge32) Then
-  edgePath = edge32
-ElseIf fso.FileExists(edge64) Then
-  edgePath = edge64
-End If
-
-Dim targetUrl
-targetUrl = "http://127.0.0.1:" & targetPort
-
-If edgePath <> "" Then
-  WshShell.Run """" & edgePath & """ --app=""" & targetUrl & """ --disable-http-cache --disk-cache-size=1 --user-data-dir=""" & WshShell.ExpandEnvironmentStrings("%TEMP%") & "\\InsertechApp""", 1, True
-Else
-  WshShell.Run """" & targetUrl & """", 1, True
-End If
-
-' À la fermeture de la fenêtre du navigateur : arrêt gracieux ciblé du PID du serveur
-If fso.FileExists(pidFile) Then
-  On Error Resume Next
-  Set tsEnd = fso.OpenTextFile(pidFile, 1)
-  curPid = Trim(tsEnd.ReadAll)
-  tsEnd.Close
-  If IsNumeric(curPid) And Len(curPid) > 0 Then
-    WshShell.Run "taskkill /f /pid " & curPid & " /t", 0, True
-  End If
-  fso.DeleteFile pidFile, True
-  On Error GoTo 0
-End If
-If fso.FileExists(portFile) Then
-  On Error Resume Next
-  fso.DeleteFile portFile, True
-  On Error GoTo 0
-End If
-`;
-fs.writeFileSync(path.join(PORTABLE_DIR, 'Lancer-Insertech-GUI.vbs'), vbsContent, 'utf-8');
-fs.writeFileSync(path.join(PORTABLE_DIR, 'Lancer-Insertech-Silencieux.vbs'), vbsContent, 'utf-8');
-
-// 4.2 Script Windows principal .bat (Déclenche le VBScript pour fermer la console instantanément)
-const winBatContent = `@echo off
-wscript.exe "%~dp0Lancer-Insertech-GUI.vbs"
-exit
-`;
-fs.writeFileSync(path.join(PORTABLE_DIR, 'Lancer-Insertech.bat'), winBatContent, 'utf-8');
-
-// 4.3 Script de création de raccourci sur le Bureau avec l'icône magique
-const makeDesktopShortcutVbs = `' ==============================================================
-' Script de création du raccourci Bureau avec icône personnalisée
-' ==============================================================
-Set WshShell = CreateObject("WScript.Shell")
-Set fso = CreateObject("Scripting.FileSystemObject")
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-desktopPath = WshShell.SpecialFolders("Desktop")
-
-Set oShortcut = WshShell.CreateShortcut(desktopPath & "\\Évaluateur Insertech.lnk")
-oShortcut.TargetPath = "wscript.exe"
-oShortcut.Arguments = """" & scriptDir & "\\Lancer-Insertech-GUI.vbs"""
-oShortcut.WorkingDirectory = scriptDir
-If fso.FileExists(scriptDir & "\\app.ico") Then
-  oShortcut.IconLocation = scriptDir & "\\app.ico,0"
-End If
-oShortcut.Description = "Évaluateur de Prix Insertech (Mode Silencieux)"
-oShortcut.Save
-
-MsgBox "Le raccourci avec icône magique a été créé sur votre Bureau avec succès !", 64, "Évaluateur Insertech"
-`;
-fs.writeFileSync(path.join(PORTABLE_DIR, 'Créer-Raccourci-Bureau.vbs'), makeDesktopShortcutVbs, 'utf-8');
-
-// Créer également un raccourci direct dans le dossier portable
-if (process.platform === 'win32') {
+if (fs.existsSync(cscPath) && fs.existsSync(launcherSource) && fs.existsSync(iconPath)) {
   try {
-    const makeLocalLnk = `Set WshShell = CreateObject("WScript.Shell")
-Set fso = CreateObject("Scripting.FileSystemObject")
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-Set oShortcut = WshShell.CreateShortcut(scriptDir & "\\Évaluateur Insertech.lnk")
-oShortcut.TargetPath = "wscript.exe"
-oShortcut.Arguments = """" & scriptDir & "\\Lancer-Insertech-GUI.vbs"""
-oShortcut.WorkingDirectory = scriptDir
-If fso.FileExists(scriptDir & "\\app.ico") Then
-  oShortcut.IconLocation = scriptDir & "\\app.ico,0"
-End If
-oShortcut.Description = "Lancer l'Évaluateur de Prix Insertech en mode silencieux"
-oShortcut.Save
-`;
-    const tempLnkVbs = path.join(PORTABLE_DIR, '_gen_lnk.vbs');
-    fs.writeFileSync(tempLnkVbs, makeLocalLnk, 'utf-8');
-    execSync(`cscript //nologo "${tempLnkVbs}"`, { cwd: PORTABLE_DIR });
-    fs.unlinkSync(tempLnkVbs);
-  } catch (e) {
-    console.warn('⚠️ Remarque lors de la création du raccourci .lnk local:', e);
+    execSync(
+      `"${cscPath}" /target:winexe /win32icon:"${iconPath}" /out:"${targetExe}" "${launcherSource}"`,
+      { cwd: ROOT_DIR, stdio: 'inherit' }
+    );
+    console.log(`✨ Exécutable natif compilé avec succès : ${targetExe}`);
+  } catch (err: any) {
+    console.error('❌ Échec de la compilation du lanceur C# :', err?.message || err);
+    process.exit(1);
   }
+} else {
+  console.error('❌ Fichiers requis pour la compilation du lanceur introuvables.');
+  process.exit(1);
 }
 
-// Linux / macOS Launcher (.sh et .command)
-const macCommandContent = `#!/bin/bash
-DIR="$( cd "$( dirname "\${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$DIR"
-export NODE_ENV=production
-export HOST=127.0.0.1
-if [ -d "$DIR/chromium" ]; then
-  if [ -f "$DIR/chromium/chrome" ]; then
-    export CHROMIUM_PATH="$DIR/chromium/chrome"
-  elif [ -f "$DIR/chromium/Chromium.app/Contents/MacOS/Chromium" ]; then
-    export CHROMIUM_PATH="$DIR/chromium/Chromium.app/Contents/MacOS/Chromium"
-  fi
-fi
-echo "🚀 Démarrage de l'Évaluateur Insertech..."
-node dist/server.js &
-SERVER_PID=$!
-PORT="3000"
-for i in {1..40}; do
-  if [ -f "$DIR/.server.port" ]; then
-    PORT=$(cat "$DIR/.server.port")
-    break
-  fi
-  sleep 0.5
-done
-open "http://127.0.0.1:$PORT" 2>/dev/null || xdg-open "http://127.0.0.1:$PORT" 2>/dev/null || true
-wait $SERVER_PID
+// Notice de conformité et zéro blocage
+const securityNotice = `# Évaluateur de Prix Insertech - Version Portable Autonome
+
+Bienvenue dans l'Évaluateur de Prix Insertech.
+
+## 🚀 Démarrage
+Pour démarrer l'application, double-cliquez simplement sur **Évaluateur Insertech.exe**.
+
+L'application s'ouvre dans une fenêtre dédiée sans console noire et se ferme proprement à la fermeture de la fenêtre.
 `;
-const macCommandPath = path.join(PORTABLE_DIR, 'Démarrer-Insertech-macOS.command');
-fs.writeFileSync(macCommandPath, macCommandContent, 'utf-8');
-try {
-  fs.chmodSync(macCommandPath, '755');
-} catch {}
-
-const shPath = path.join(PORTABLE_DIR, 'Lancer-Insertech.sh');
-fs.writeFileSync(shPath, macCommandContent, 'utf-8');
-try {
-  fs.chmodSync(shPath, '755');
-} catch {}
-
-// Guide de conformité et zéro blocage pour administrateurs IT
-const securityNotice = `# Garantie d'exécution Zéro Blocage (Windows & macOS)
-
-L'application **Évaluateur de Prix Insertech** est conçue pour fonctionner de manière autonome sur les postes de travail de bureau et PC reconditionnés sans nécessiter de droits d'administration ou de certificat de signature payant.
-
-## 🛡️ Pourquoi l'application n'est pas bloquée ?
-
-1. **Aucun avertissement de pare-feu (Windows / macOS Firewall)** :
-   - Le serveur web s'exécute par défaut en boucle locale (\`127.0.0.1 / localhost\`).
-   - Le trafic ne sort pas sur le réseau public, ce qui évite d'ouvrir des requêtes de privilèges administrateur auprès du pare-feu.
-
-2. **Aucun blocage SmartScreen / Éditeur Inconnu** :
-   - L'application utilise les interpréteurs natifs du système (\`cmd.exe\`, \`wscript.exe\`, \`bash\`) qui sont pré-vérifiés et signés directement par Microsoft et Apple.
-
-3. **Compatibilité réseau entreprise** :
-   - Aucune installation de pilote ou de service système n'est requise.
-
-## 🚀 Méthodes de lancement :
-
-- **Windows** : Double-cliquer sur \`Lancer-Insertech.bat\` ou \`Lancer-Insertech-Silencieux.vbs\`
-- **macOS** : Double-cliquer sur \`Démarrer-Insertech-macOS.command\`
-`;
-fs.writeFileSync(path.join(PORTABLE_DIR, 'GARANTIE_ZERO_BLOCAGE.md'), securityNotice, 'utf-8');
+fs.writeFileSync(path.join(PORTABLE_DIR, 'LISEZMOI.md'), securityNotice, 'utf-8');
 
 // 5. Générer l'archive ZIP portable autonome
 console.log('📦 Génération de l\'archive ZIP portable autonome finale...');
@@ -438,12 +224,19 @@ if (process.platform === 'win32') {
   }
 }
 
+// Rendre le sous-dossier technique app/ discret (attribut masqué sous Windows)
+if (process.platform === 'win32') {
+  try {
+    execSync(`attrib +h "${APP_DIR}"`, { stdio: 'ignore' });
+    console.log('🔒 Dossier technique app/ masqué sous Windows Explorer.');
+  } catch {}
+}
+
 console.log('\n=============================================================');
-console.log('✅ EMBALLAGE 100% AUTONOME ZÉRO-BLOCAGE POUR WINDOWS & MAC !');
+console.log('✅ EMBALLAGE 100% AUTONOME TERMINÉ !');
 console.log(`📁 Dossier Portable : ${PORTABLE_DIR}`);
+console.log(`🎯 Lanceur Unique : ${targetExe}`);
 if (fs.existsSync(zipPath)) {
   console.log(`📦 Archive ZIP prête : ${zipPath}`);
 }
 console.log('=============================================================\n');
-
-

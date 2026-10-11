@@ -179,8 +179,14 @@ export function isAllowedRedirectHost(urlStr: string): boolean {
 
 /** L'application tourne-t-elle depuis le dossier portable autonome (et non un dépôt de dev) ? */
 export function isPortableInstall(appDir: string = process.cwd()): boolean {
-  return ["node.exe", "Lancer-Insertech-GUI.vbs", "Lancer-Insertech.sh"]
-    .some(f => fs.existsSync(path.join(appDir, f)));
+  return [
+    "node.exe",
+    "Évaluateur Insertech.exe",
+    path.join("..", "Évaluateur Insertech.exe"),
+    path.join("app", "node.exe"),
+    "Lancer-Insertech-GUI.vbs",
+    "Lancer-Insertech.sh"
+  ].some(f => fs.existsSync(path.join(appDir, f)));
 }
 
 export interface SelectedAsset {
@@ -462,8 +468,10 @@ export function resolveSourceDir(extractDir: string): string {
 
 /** Une archive portable doit contenir l'application compilée, sinon on n'arrête pas le serveur. */
 export function validatePortablePackage(sourceDir: string): void {
+  const hasAppDir = fs.existsSync(path.join(sourceDir, "app", "dist", "server.js"));
+  const baseDir = hasAppDir ? path.join(sourceDir, "app") : sourceDir;
   const required = [path.join("dist", "server.js"), path.join("dist", "index.html")];
-  const missing = required.filter(rel => !fs.existsSync(path.join(sourceDir, rel)));
+  const missing = required.filter(rel => !fs.existsSync(path.join(baseDir, rel)));
   if (missing.length > 0) {
     throw new UpdateValidationError(
       `Archive non conforme au package portable Insertech (fichiers manquants : ${missing.join(", ")}). ` +
@@ -557,10 +565,17 @@ export function buildWindowsUpdaterScript(opts: WindowsUpdaterOptions): string {
     "rem 3. Copie securisee : donnees, journaux, exports et secrets sont exclus",
     "set /a TRIES=0",
     ":COPY",
-    'robocopy "%SRC_DIR%" "%APP_DIR%" /E /R:3 /W:2 /NP /NFL /NDL ' +
+    'if exist "%SRC_DIR%\\app" (',
+    '  robocopy "%SRC_DIR%\\app" "%APP_DIR%" /E /R:3 /W:2 /NP /NFL /NDL ' +
+      '/XD "%SRC_DIR%\\app\\data" "%SRC_DIR%\\app\\logs" "%SRC_DIR%\\app\\exports" "%SRC_DIR%\\app\\scraper-cache" ' +
+      '/XF "%SRC_DIR%\\app\\.env" "%SRC_DIR%\\app\\db.json" "%SRC_DIR%\\app\\.server.pid" "%SRC_DIR%\\app\\.server.port" ' +
+      '>> "%LOG_FILE%" 2>&1',
+    ') else (',
+    '  robocopy "%SRC_DIR%" "%APP_DIR%" /E /R:3 /W:2 /NP /NFL /NDL ' +
       '/XD "%SRC_DIR%\\data" "%SRC_DIR%\\logs" "%SRC_DIR%\\exports" "%SRC_DIR%\\scraper-cache" ' +
       '/XF "%SRC_DIR%\\.env" "%SRC_DIR%\\db.json" "%SRC_DIR%\\.server.pid" "%SRC_DIR%\\.server.port" ' +
       '>> "%LOG_FILE%" 2>&1',
+    ')',
     'set "RC=%ERRORLEVEL%"',
     "if %RC% LSS 8 goto COPY_OK",
     "set /a TRIES+=1",
@@ -572,6 +587,11 @@ export function buildWindowsUpdaterScript(opts: WindowsUpdaterOptions): string {
     "goto RELAUNCH",
     ":COPY_OK",
     'echo [%DATE% %TIME%] Copie terminee (robocopy code %RC%). >> "%LOG_FILE%"',
+    'if exist "%SRC_DIR%\\Évaluateur Insertech.exe" (',
+    '  if exist "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
+    '  move /y "%APP_DIR%\\..\\Évaluateur Insertech.exe" "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
+    '  copy /y "%SRC_DIR%\\Évaluateur Insertech.exe" "%APP_DIR%\\..\\Évaluateur Insertech.exe" >> "%LOG_FILE%" 2>&1',
+    ')',
     `rmdir /s /q "%APP_DIR%\\${TEMP_EXTRACT_DIR_NAME}" >nul 2>&1`,
     `del /f /q "%APP_DIR%\\${TEMP_ZIP_NAME}" >nul 2>&1`,
     "",

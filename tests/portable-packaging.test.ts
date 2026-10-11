@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { PID_FILE, PORT_FILE } from "../server/config/index.ts";
 
-describe("Packaging Exécutable & Lanceurs Autonomes (Jalon 7 - Volet 1)", () => {
+describe("Packaging Exécutable & Lanceur Unique Autonome (Jalon 7 - Volet 1)", () => {
   it("exporte les chemins de verrouillage PID_FILE et PORT_FILE dans la configuration", () => {
     expect(PID_FILE).toBeDefined();
     expect(PORT_FILE).toBeDefined();
@@ -11,7 +11,7 @@ describe("Packaging Exécutable & Lanceurs Autonomes (Jalon 7 - Volet 1)", () =>
     expect(PORT_FILE).toContain(".server.port");
   });
 
-  it("vérifie que le script build-executable contient la gestion de PID ciblé et aucun taskkill aveugle", () => {
+  it("vérifie que le script build-executable compile le lanceur natif et isole l'application dans app/", () => {
     const buildScriptPath = path.join(process.cwd(), "scripts", "build-executable.ts");
     expect(fs.existsSync(buildScriptPath)).toBe(true);
 
@@ -22,20 +22,40 @@ describe("Packaging Exécutable & Lanceurs Autonomes (Jalon 7 - Volet 1)", () =>
     expect(scriptContent).toContain("typescript");
     expect(scriptContent).toContain("vitest");
 
-    // Vérifier la présence du ciblage par PID dans le script VBS
-    expect(scriptContent).toContain(".server.pid");
-    expect(scriptContent).toContain(".server.port");
-    expect(scriptContent).toContain("taskkill /f /pid");
+    // Vérifier l'encapsulation dans app/
+    expect(scriptContent).toContain("const APP_DIR = path.join(PORTABLE_DIR, 'app')");
 
-    // Vérifier qu'il n'y a plus aucun kill aveugle de tous les processus node.exe
-    expect(scriptContent).not.toContain("taskkill /f /im node.exe");
+    // Vérifier la compilation C# du lanceur natif avec icône intégrée
+    expect(scriptContent).toContain("csc.exe");
+    expect(scriptContent).toContain("Évaluateur Insertech.exe");
+    expect(scriptContent).toContain("/win32icon");
+
+    // Vérifier le retrait des lanceurs obsolètes Linux et macOS
+    expect(scriptContent).not.toContain("Démarrer-Insertech-macOS.command");
+    expect(scriptContent).not.toContain("Lancer-Insertech.sh");
   });
 
-  it("vérifie que le script bash pour macOS/Linux utilise le port dynamique", () => {
-    const buildScriptPath = path.join(process.cwd(), "scripts", "build-executable.ts");
-    const scriptContent = fs.readFileSync(buildScriptPath, "utf-8");
+  it("vérifie que le lanceur natif C# gère le mutex, le port dynamique et l'arrêt propre", () => {
+    const launcherSourcePath = path.join(process.cwd(), "launcher", "Launcher.cs");
+    expect(fs.existsSync(launcherSourcePath)).toBe(true);
 
-    expect(scriptContent).toContain(".server.port");
-    expect(scriptContent).toContain("SERVER_PID=$!");
+    const launcherContent = fs.readFileSync(launcherSourcePath, "utf-8");
+
+    // Mutex pour instance unique et restauration de la fenêtre existante
+    expect(launcherContent).toContain("Mutex");
+    expect(launcherContent).toContain("EvaluateurInsertechLauncherMutex");
+
+    // Détection dynamique du port et suivi du PID
+    expect(launcherContent).toContain(".server.pid");
+    expect(launcherContent).toContain(".server.port");
+
+    // Arrêt gracieux via token de sécurité
+    expect(launcherContent).toContain("/api/system/shutdown");
+    expect(launcherContent).toContain("INSERTECH_SHUTDOWN_TOKEN");
+    expect(launcherContent).toContain("X-Shutdown-Token");
+
+    // Aucun kill aveugle de tous les processus node.exe
+    expect(launcherContent).not.toContain("taskkill /f /im node.exe");
+    expect(launcherContent).not.toContain("taskkill /im node.exe");
   });
 });

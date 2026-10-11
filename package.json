@@ -1,7 +1,7 @@
 {
   "name": "evaluateur-prix-insertech",
   "private": true,
-  "version": "1.5.2",
+  "version": "1.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Bountam/evaluateur-de-prix.git"

@@ -2,6 +2,8 @@ import React, { useState, useMemo } from "react";
 import { MASTER_LIST_MODELS, normalizeCategory } from "../modelsData";
 import { Search, Monitor, Laptop, Smartphone, ChevronRight, PlusCircle, RefreshCw } from "lucide-react";
 import { ModelEvaluation } from "../types";
+import HelpTooltip from "./common/HelpTooltip";
+import { HELP_CONTENT } from "../constants/helpContent";
 
 interface SidebarProps {
   selectedModel: string;
@@ -114,27 +116,31 @@ export default function Sidebar({
     <aside className="w-72 bg-white dark:bg-slate-900 border-r border-[#DCDDE1] dark:border-slate-800 flex flex-col h-full shrink-0" id="sidebar-container">
       {/* Search & Add Header */}
       <div className="p-3 border-b border-[#DCDDE1] dark:border-slate-800 bg-[#F1F2F6] dark:bg-slate-800/50 space-y-2.5" id="search-section">
-        <div className="relative">
+        <div className="relative flex items-center">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#7F8C8D]" />
           <input
             type="text"
             placeholder="Rechercher un modèle..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-[#DCDDE1] dark:border-slate-700 rounded shadow-sm outline-none focus:border-brand-purple dark:focus:border-brand-lime text-slate-800 dark:text-slate-200 transition-colors"
+            className="w-full pl-8 pr-7 py-1.5 text-xs bg-white dark:bg-slate-800 border border-[#DCDDE1] dark:border-slate-700 rounded shadow-sm outline-none focus:border-brand-purple dark:focus:border-brand-lime text-slate-800 dark:text-slate-200 transition-colors"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             id="sidebar-search"
           />
+          <HelpTooltip topic={HELP_CONTENT.modelSearch} size="xs" side="bottom" className="absolute right-2" id="sidebarModelSearch" />
         </div>
         {onOpenAddModel && (
-          <button
-            type="button"
-            onClick={onOpenAddModel}
-            className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded bg-brand-purple dark:bg-brand-lime text-white dark:text-slate-900 font-bold text-xs shadow hover:opacity-90 transition-all cursor-pointer"
-            title="Ajouter un nouveau modèle"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>Ajouter un modèle</span>
-          </button>
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={onOpenAddModel}
+              className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded bg-brand-purple dark:bg-brand-lime text-white dark:text-slate-900 font-bold text-xs shadow hover:opacity-90 transition-all cursor-pointer"
+              title="Ajouter un nouveau modèle"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Ajouter un modèle</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.addModelBtn} size="xs" side="right" id="sidebarAddModel" />
+          </div>
         )}
       </div>
 

@@ -1,5 +1,7 @@
 import React from "react";
 import { ListingFilters } from "./types";
+import HelpTooltip from "../common/HelpTooltip";
+import { HELP_CONTENT } from "../../constants/helpContent";
 
 interface ListingFilterBarProps {
   filters: ListingFilters;
@@ -65,34 +67,38 @@ export const ListingFilterBar: React.FC<ListingFilterBarProps> = ({
       {/* Ligne 1 : Recherche mot-clé & Boutons d'accès aux 4 volets repliables */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Recherche Mot-clé (À gauche) */}
-        <div className="relative flex items-center min-w-[150px] max-w-[240px] flex-1">
+        <div className="relative flex items-center min-w-[150px] max-w-[260px] flex-1">
           <input
             type="text"
             placeholder="🔍 Rechercher par mot-clé..."
             value={specFilter}
             onChange={(e) => onFilterChange("specFilter", e.target.value)}
-            className="w-full pl-3 pr-7 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-purple font-medium shadow-inner"
+            className="w-full pl-3 pr-12 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-brand-purple font-medium shadow-inner"
           />
           {specFilter && (
-            <button onClick={() => onFilterChange("specFilter", "")} className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer">
+            <button onClick={() => onFilterChange("specFilter", "")} className="absolute right-7 text-slate-400 hover:text-slate-600 text-xs cursor-pointer">
               ✕
             </button>
           )}
+          <HelpTooltip topic={HELP_CONTENT.filterKeyword} size="xs" side="bottom" className="absolute right-2" id="filterKeywordHelp" />
         </div>
 
         {/* Bouton Volet 1 : Sources (16 Connecteurs) */}
-        <button
-          type="button"
-          onClick={() => setShowSourceSection(!showSourceSection)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition border cursor-pointer ${
-            filterSource !== "Toutes" || showSourceSection
-              ? "bg-brand-purple text-white border-brand-purple dark:bg-brand-lime dark:text-slate-950 dark:border-brand-lime shadow-sm"
-              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200"
-          }`}
-        >
-          <span>🏪 Sources ({filterSource === "Toutes" ? "Toutes" : filterSource})</span>
-          <span className="text-[10px]">{showSourceSection ? "▲" : "▼"}</span>
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            type="button"
+            onClick={() => setShowSourceSection(!showSourceSection)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition border cursor-pointer ${
+              filterSource !== "Toutes" || showSourceSection
+                ? "bg-brand-purple text-white border-brand-purple dark:bg-brand-lime dark:text-slate-950 dark:border-brand-lime shadow-sm"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <span>🏪 Sources ({filterSource === "Toutes" ? "Toutes" : filterSource})</span>
+            <span className="text-[10px]">{showSourceSection ? "▲" : "▼"}</span>
+          </button>
+          <HelpTooltip topic={HELP_CONTENT.filterSource} size="xs" side="bottom" id="filterSourceHelp" />
+        </div>
 
         {/* Bouton Volet 2 : Écran & OS */}
         <button
@@ -129,21 +135,24 @@ export const ListingFilterBar: React.FC<ListingFilterBarProps> = ({
         </button>
 
         {/* Bouton Volet 4 : Hardware (RAM, CPU, SSD, Année) */}
-        <button
-          type="button"
-          onClick={() => setShowHardwareSection(!showHardwareSection)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition border cursor-pointer ${
-            filterRam !== "Toutes" || filterCpu !== "Tous" || filterStorage !== "Tous" || filterYear !== "Toutes" || showHardwareSection
-              ? "bg-purple-600 text-white border-purple-600 dark:bg-purple-500 dark:text-slate-950 shadow-sm"
-              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200"
-          }`}
-        >
-          <span>⚙️ Specs (RAM, CPU, SSD)</span>
-          {(filterRam !== "Toutes" || filterCpu !== "Tous" || filterStorage !== "Tous" || filterYear !== "Toutes") && (
-            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-          )}
-          <span className="text-[10px]">{showHardwareSection ? "▲" : "▼"}</span>
-        </button>
+        <div className="flex items-center space-x-1">
+          <button
+            type="button"
+            onClick={() => setShowHardwareSection(!showHardwareSection)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition border cursor-pointer ${
+              filterRam !== "Toutes" || filterCpu !== "Tous" || filterStorage !== "Tous" || filterYear !== "Toutes" || showHardwareSection
+                ? "bg-purple-600 text-white border-purple-600 dark:bg-purple-500 dark:text-slate-950 shadow-sm"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <span>⚙️ Specs (RAM, CPU, SSD)</span>
+            {(filterRam !== "Toutes" || filterCpu !== "Tous" || filterStorage !== "Tous" || filterYear !== "Toutes") && (
+              <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+            )}
+            <span className="text-[10px]">{showHardwareSection ? "▲" : "▼"}</span>
+          </button>
+          <HelpTooltip topic={HELP_CONTENT.filterHardware} size="xs" side="bottom" id="filterHardwareHelp" />
+        </div>
       </div>
 
       {/* VOLET 1 : Sélection des 16 Sources (Repliable) */}

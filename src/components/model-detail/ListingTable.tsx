@@ -2,6 +2,8 @@ import React from "react";
 import { ExternalLink } from "lucide-react";
 import { ComparableListing } from "../../types";
 import { SortColumn, SortOrder } from "./types";
+import HelpTooltip from "../common/HelpTooltip";
+import { HELP_CONTENT } from "../../constants/helpContent";
 import {
   getAnomalyReason,
   getScreenSize,
@@ -46,7 +48,12 @@ export const ListingTable: React.FC<ListingTableProps> = ({
       <table className="w-full text-left border-collapse text-xs">
         <thead>
           <tr className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 text-xs font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
-            <th className="py-2.5 px-3 w-12 text-center border-r border-slate-200 dark:border-slate-700">SEL</th>
+            <th className="py-2.5 px-3 w-16 text-center border-r border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-center space-x-1">
+                <span>SEL</span>
+                <HelpTooltip topic={HELP_CONTENT.colIncluded} size="xs" side="bottom" id="thColIncluded" />
+              </div>
+            </th>
             
             {/* Colonne SOURCE cliquable pour le tri */}
             <th 
@@ -55,12 +62,20 @@ export const ListingTable: React.FC<ListingTableProps> = ({
               title="Cliquer pour trier par source (A-Z / Z-A)"
             >
               <div className="flex items-center justify-between">
-                <span>SOURCE</span>
+                <div className="flex items-center space-x-1">
+                  <span>SOURCE</span>
+                  <HelpTooltip topic={HELP_CONTENT.colSource} size="xs" side="bottom" id="thColSource" />
+                </div>
                 <span className="text-[10px] text-slate-400">{sortBy === 'source' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
               </div>
             </th>
 
-            <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700">DESCRIPTION DE L'ANNONCE</th>
+            <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <span>DESCRIPTION DE L'ANNONCE</span>
+                <HelpTooltip topic={HELP_CONTENT.colStatus} size="xs" side="bottom" id="thColStatus" />
+              </div>
+            </th>
             
             {/* Colonne DATE cliquable pour le tri */}
             <th 
@@ -77,12 +92,13 @@ export const ListingTable: React.FC<ListingTableProps> = ({
             {/* Colonne PRIX cliquable pour le tri */}
             <th 
               onClick={() => onSortChange('price')}
-              className="py-2.5 px-3 w-32 text-right text-brand-purple dark:text-brand-lime border-r border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 select-none transition"
+              className="py-2.5 px-3 w-36 text-right text-brand-purple dark:text-brand-lime border-r border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 select-none transition"
               title="Cliquer pour trier par prix (Plus bas / Plus élevé)"
             >
               <div className="flex items-center justify-end space-x-1">
                 <span>PRIX (CAD)</span>
                 <span className="text-[10px] text-slate-400">{sortBy === 'price' ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}</span>
+                <HelpTooltip topic={HELP_CONTENT.colPrice} size="xs" side="bottom" id="thColPrice" />
               </div>
             </th>
 

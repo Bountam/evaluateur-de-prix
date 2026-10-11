@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import Logo from "./components/Logo";
 import SourcesTab from "./components/SourcesTab";
+import HelpTooltip from "./components/common/HelpTooltip";
+import { HELP_CONTENT } from "./constants/helpContent";
 
 function getStoredValue(key: string, defaultValue = ""): string {
   return localStorage.getItem(`evaluateur_${key}`) ?? localStorage.getItem(`insertech_${key}`) ?? defaultValue;
@@ -91,7 +93,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion, setAppVersion] = useState("1.5.2");
+  const [appVersion, setAppVersion] = useState("1.6.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Opérateur & Modals de Session ---
@@ -595,15 +597,18 @@ export default function App() {
           {/* Status indicators & Theme toggle */}
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono" id="status-indicators">
 
-            <button
-              onClick={() => setIsUserSwitchOpen(true)}
-              className="inline-flex items-center space-x-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 px-2.5 py-1 rounded-sm text-blue-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-              id="btn-user-switch"
-              title="Changer d'utilisateur / Fin de session"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-blue-300" />
-              <span>Usager : {operatorName || "Non défini"}</span>
-            </button>
+            <div className="inline-flex items-center space-x-1">
+              <button
+                onClick={() => setIsUserSwitchOpen(true)}
+                className="inline-flex items-center space-x-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 px-2.5 py-1 rounded-sm text-blue-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
+                id="btn-user-switch"
+                title="Changer d'utilisateur / Fin de session"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-blue-300" />
+                <span>Usager : {operatorName || "Non défini"}</span>
+              </button>
+              <HelpTooltip topic={HELP_CONTENT.operatorSwitch} size="xs" side="bottom" id="operatorSwitch" />
+            </div>
 
             <span className="inline-flex items-center space-x-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-sm text-slate-300">
               <span className="font-semibold select-all">
@@ -615,47 +620,59 @@ export default function App() {
               </span>
             </span>
 
-            <button
-              onClick={() => setIsUpdateModalOpen(true)}
-              className="inline-flex items-center space-x-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 px-2 py-1 rounded-sm text-purple-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-              id="btn-version-update"
-              title="Vérifier la version et les mises à jour"
-            >
-              <Sparkles className="w-3 h-3 text-purple-300" />
-              <span>v{appVersion}</span>
-            </button>
+            <div className="inline-flex items-center space-x-1">
+              <button
+                onClick={() => setIsUpdateModalOpen(true)}
+                className="inline-flex items-center space-x-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 px-2 py-1 rounded-sm text-purple-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
+                id="btn-version-update"
+                title="Vérifier la version et les mises à jour"
+              >
+                <Sparkles className="w-3 h-3 text-purple-300" />
+                <span>v{appVersion}</span>
+              </button>
+              <HelpTooltip topic={HELP_CONTENT.systemVersion} size="xs" side="bottom" id="systemVersion" />
+            </div>
 
-            <button
-              onClick={() => setIsConcurrencyModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-2.5 py-1 rounded-sm text-amber-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-              id="btn-concurrency-modal"
-              title="Ajuster la concurrence / puissance CPU"
-            >
-              <Cpu className="w-3.5 h-3.5 text-amber-400" />
-              <span>CPU : {concurrency} {concurrency === 1 ? 'SOURCE' : 'SOURCES'}</span>
-            </button>
+            <div className="inline-flex items-center space-x-1">
+              <button
+                onClick={() => setIsConcurrencyModalOpen(true)}
+                className="inline-flex items-center space-x-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-2.5 py-1 rounded-sm text-amber-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
+                id="btn-concurrency-modal"
+                title="Ajuster la concurrence / puissance CPU"
+              >
+                <Cpu className="w-3.5 h-3.5 text-amber-400" />
+                <span>CPU : {concurrency} {concurrency === 1 ? 'SOURCE' : 'SOURCES'}</span>
+              </button>
+              <HelpTooltip topic={HELP_CONTENT.cpuConcurrency} size="xs" side="bottom" id="cpuConcurrency" />
+            </div>
 
-            <button
-              onClick={() => setActiveTab("export")}
-              className={`inline-flex items-center space-x-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 px-2.5 py-1 rounded-sm text-emerald-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold ${
-                activeTab === "export" ? "ring-2 ring-emerald-400" : ""
-              }`}
-              id="btn-header-export"
-              title="Exporter les évaluations vers Excel"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>EXPORT</span>
-            </button>
+            <div className="inline-flex items-center space-x-1">
+              <button
+                onClick={() => setActiveTab("export")}
+                className={`inline-flex items-center space-x-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 px-2.5 py-1 rounded-sm text-emerald-200 cursor-pointer transition-all active:scale-95 text-[10px] font-bold ${
+                  activeTab === "export" ? "ring-2 ring-emerald-400" : ""
+                }`}
+                id="btn-header-export"
+                title="Exporter les évaluations vers Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>EXPORT</span>
+              </button>
+              <HelpTooltip topic={HELP_CONTENT.excelExport} size="xs" side="bottom" id="excelExport" />
+            </div>
 
-            <button
-              onClick={toggleTheme}
-              className="inline-flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-sm text-white cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
-              id="btn-theme-toggle"
-              title="Basculer le thème"
-            >
-              {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-              <span>{theme === "light" ? "SOMBRE" : "CLAIR"}</span>
-            </button>
+            <div className="inline-flex items-center space-x-1">
+              <button
+                onClick={toggleTheme}
+                className="inline-flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-sm text-white cursor-pointer transition-all active:scale-95 text-[10px] font-bold"
+                id="btn-theme-toggle"
+                title="Basculer le thème"
+              >
+                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                <span>{theme === "light" ? "SOMBRE" : "CLAIR"}</span>
+              </button>
+              <HelpTooltip topic={HELP_CONTENT.themeToggle} size="xs" side="bottom" id="themeToggle" />
+            </div>
           </div>
         </div>
       </header>
@@ -663,108 +680,129 @@ export default function App() {
       {/* Navigation tabs */}
       <nav className="bg-bg-card border-b border-border-main shrink-0 sticky top-0 z-20 shadow-sm transition-colors duration-200" id="main-navigation">
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap gap-x-5 gap-y-1" id="navigation-tabs">
-          <button
-            onClick={() => {
-              setActiveTab("portables");
-              setSelectedModel("ThinkPad T480");
-              setSelectedCategory("Portables Lenovo");
-            }}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "portables"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-portables"
-          >
-            <Laptop className="w-3.5 h-3.5" />
-            <span>PORTABLES</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setActiveTab("portables");
+                setSelectedModel("ThinkPad T480");
+                setSelectedCategory("Portables Lenovo");
+              }}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "portables"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-portables"
+            >
+              <Laptop className="w-3.5 h-3.5" />
+              <span>PORTABLES</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navPortables} size="xs" side="bottom" id="navPortables" />
+          </div>
 
-          <button
-            onClick={() => {
-              setActiveTab("desktops");
-              setSelectedModel("ThinkCentre M720q");
-              setSelectedCategory("Desktop Lenovo");
-            }}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "desktops"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-desktops"
-          >
-            <Monitor className="w-3.5 h-3.5" />
-            <span>BUREAU</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setActiveTab("desktops");
+                setSelectedModel("ThinkCentre M720q");
+                setSelectedCategory("Desktop Lenovo");
+              }}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "desktops"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-desktops"
+            >
+              <Monitor className="w-3.5 h-3.5" />
+              <span>BUREAU</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navDesktops} size="xs" side="bottom" id="navDesktops" />
+          </div>
 
-          <button
-            onClick={() => {
-              setActiveTab("iphone");
-              setSelectedModel("iPhone 11");
-              setSelectedCategory("iPhones");
-            }}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "iphone"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-iphone"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>IPHONE</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setActiveTab("iphone");
+                setSelectedModel("iPhone 11");
+                setSelectedCategory("iPhones");
+              }}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "iphone"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-iphone"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>IPHONE</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navIphones} size="xs" side="bottom" id="navIphones" />
+          </div>
 
-          <button
-            onClick={() => setActiveTab("historique")}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "historique"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-historique"
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>HISTORIQUE</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setActiveTab("historique")}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "historique"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-historique"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>HISTORIQUE</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navHistorique} size="xs" side="bottom" id="navHistorique" />
+          </div>
 
-          <button
-            onClick={() => setActiveTab("ecarts")}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "ecarts"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-ecarts"
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>ÉCARTS</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setActiveTab("ecarts")}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "ecarts"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-ecarts"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>ÉCARTS</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navEcarts} size="xs" side="bottom" id="navEcarts" />
+          </div>
 
-          <button
-            onClick={() => setActiveTab("gcsurplus")}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "gcsurplus"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-gcsurplus"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>GCSURPLUS</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setActiveTab("gcsurplus")}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "gcsurplus"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-gcsurplus"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>GCSURPLUS</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navGcsurplus} size="xs" side="bottom" id="navGcsurplus" />
+          </div>
 
-          <button
-            onClick={() => setActiveTab("sources")}
-            className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
-              activeTab === "sources"
-                ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
-                : "border-transparent text-text-muted hover:text-text-main"
-            }`}
-            id="nav-btn-sources"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span>SOURCES & MARQUE</span>
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setActiveTab("sources")}
+              className={`flex items-center space-x-1.5 py-2.5 border-b-2 font-bold text-xs transition-all outline-none cursor-pointer ${
+                activeTab === "sources"
+                  ? "border-brand-purple text-brand-purple dark:border-brand-lime dark:text-brand-lime"
+                  : "border-transparent text-text-muted hover:text-text-main"
+              }`}
+              id="nav-btn-sources"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>SOURCES & MARQUE</span>
+            </button>
+            <HelpTooltip topic={HELP_CONTENT.navSources} size="xs" side="bottom" id="navSources" />
+          </div>
 
           <div className="flex-1 min-w-4"></div>
 

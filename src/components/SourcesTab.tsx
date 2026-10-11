@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { DataSource, OrganizationConfig } from "../types";
 import Logo from "./Logo";
+import HelpTooltip from "./common/HelpTooltip";
+import { HELP_CONTENT } from "../constants/helpContent";
 
 interface SourcesTabProps {
   sources: DataSource[];
@@ -198,9 +200,12 @@ export default function SourcesTab({ sources, onPurgeAll, organization, onOrgani
               <Building2 className="w-5 h-5 text-brand-purple dark:text-brand-lime" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-text-main uppercase tracking-wider font-title">
-                Organisation & Image de Marque (Marque Blanche)
-              </h3>
+              <div className="flex items-center space-x-1.5">
+                <h3 className="text-sm font-bold text-text-main uppercase tracking-wider font-title">
+                  Organisation & Image de Marque (Marque Blanche)
+                </h3>
+                <HelpTooltip topic={HELP_CONTENT.whiteLabelSettings} size="xs" side="bottom" id="srcOrgHelp" />
+              </div>
               <p className="text-[11px] text-text-muted">
                 Personnalisez le nom et le logo de l'entreprise. Ces éléments sont dynamiques, sauvegardés en base et synchronisés avec vos exports Excel.
               </p>
@@ -487,11 +492,14 @@ export default function SourcesTab({ sources, onPurgeAll, organization, onOrgani
             {/* Tab Content: Local */}
             {activeTab === "local" && (
               <div className="space-y-4 animate-fadeIn">
-                <div className="p-3 bg-blue-50/50 dark:bg-blue-950/10 rounded-lg border border-blue-200/40 dark:border-blue-900/40 text-xs text-text-muted flex items-start space-x-2">
-                  <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <p>
-                    Ces chemins configurent l'emplacement des fichiers Excel contenant vos grilles de prix internes (boutique et atelier) et vos archives d'anciennes analyses de valeur marchande.
-                  </p>
+                <div className="p-3 bg-blue-50/50 dark:bg-blue-950/10 rounded-lg border border-blue-200/40 dark:border-blue-900/40 text-xs text-text-muted flex items-start justify-between">
+                  <div className="flex items-start space-x-2">
+                    <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <p>
+                      Ces chemins configurent l'emplacement des fichiers Excel contenant vos grilles de prix internes (boutique et atelier) et vos archives d'anciennes analyses de valeur marchande.
+                    </p>
+                  </div>
+                  <HelpTooltip topic={HELP_CONTENT.localCatalogFiles} size="xs" side="bottom" id="srcLocalHelp" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -592,7 +600,7 @@ export default function SourcesTab({ sources, onPurgeAll, organization, onOrgani
                   <span>{saveMessage}</span>
                 </span>
               ) : <span />}
-              <div>
+              <div className="flex items-center space-x-1.5">
                 <button
                   type="button"
                   onClick={handlePurgeAll}
@@ -606,6 +614,7 @@ export default function SourcesTab({ sources, onPurgeAll, organization, onOrgani
                   )}
                   <span>Purger toutes les données</span>
                 </button>
+                <HelpTooltip topic={HELP_CONTENT.purgeCacheBtn} size="xs" side="top" id="srcPurgeHelp" />
               </div>
               <div className="flex items-center space-x-3">
                 {saveMessage && (

@@ -1,4 +1,6 @@
 import React from "react";
+import HelpTooltip from "../common/HelpTooltip";
+import { HELP_CONTENT } from "../../constants/helpContent";
 
 interface PriceTrendSparklineProps {
   historicalPrices?: { date: string; price: number }[];
@@ -44,8 +46,9 @@ export const PriceTrendSparkline: React.FC<PriceTrendSparklineProps> = ({
   return (
     <div className="flex items-center space-x-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
       <div className="flex flex-col">
-        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-          Tendance historique
+        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+          <span>Tendance historique</span>
+          <HelpTooltip topic={HELP_CONTENT.statSparkline} size="xs" side="top" id="statSparkline" />
         </span>
         <div className="flex items-center space-x-1">
           <span className={`text-xs font-bold font-mono ${colorClass}`}>

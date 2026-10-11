@@ -1,8 +1,10 @@
 import React from "react";
-import { HelpCircle, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { ModelEvaluation } from "../../types";
 import { ModelDetailHeader } from "./ModelDetailHeader";
 import { PriceTrendSparkline } from "./PriceTrendSparkline";
+import HelpTooltip from "../common/HelpTooltip";
+import { HELP_CONTENT } from "../../constants/helpContent";
 
 interface StatisticalSummaryCardProps {
   modelName: string;
@@ -26,7 +28,7 @@ export const StatisticalSummaryCard: React.FC<StatisticalSummaryCardProps> = ({
           <div className="bg-[#F8F9FA] rounded border border-[#DCDDE1] p-3 flex flex-col justify-between">
             <span className="text-[10px] font-bold text-[#7F8C8D] uppercase flex items-center space-x-1">
               <span>Prix Médian Recommandé</span>
-              <HelpCircle className="w-3 h-3 text-[#7F8C8D] cursor-help" title="La médiane élimine l'effet des annonces extrêmes." />
+              <HelpTooltip topic={HELP_CONTENT.statMedianPrice} size="xs" side="top" id="statMedianPrice" />
             </span>
             <div className="flex items-baseline space-x-1.5 mt-1">
               <span className="text-xl font-bold text-[#2D3436] font-mono">
@@ -38,7 +40,10 @@ export const StatisticalSummaryCard: React.FC<StatisticalSummaryCardProps> = ({
 
           {/* Comparables Count */}
           <div className="bg-[#F8F9FA] rounded border border-[#DCDDE1] p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-bold text-[#7F8C8D] uppercase">Comparables Validés</span>
+            <span className="text-[10px] font-bold text-[#7F8C8D] uppercase flex items-center space-x-1">
+              <span>Comparables Validés</span>
+              <HelpTooltip topic={HELP_CONTENT.statComparablesCount} size="xs" side="top" id="statComparablesCount" />
+            </span>
             <div className="flex items-baseline space-x-1 mt-1">
               <span className="text-xl font-bold text-[#2D3436] font-mono">{evaluation.comparablesCount}</span>
               <span className="text-[10px] text-[#7F8C8D] font-bold ml-1 uppercase">actifs</span>
@@ -47,7 +52,10 @@ export const StatisticalSummaryCard: React.FC<StatisticalSummaryCardProps> = ({
 
           {/* Last checked */}
           <div className="bg-[#F8F9FA] rounded border border-[#DCDDE1] p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-bold text-[#7F8C8D] uppercase">Dernière Ingestion</span>
+            <span className="text-[10px] font-bold text-[#7F8C8D] uppercase flex items-center space-x-1">
+              <span>Dernière Ingestion</span>
+              <HelpTooltip topic={HELP_CONTENT.statLastScraped} size="xs" side="top" id="statLastScraped" />
+            </span>
             <span className="text-[10px] text-[#1A1A1B] font-mono font-semibold mt-2">
               {evaluation.lastScraped ? new Date(evaluation.lastScraped).toLocaleDateString("fr-CA", {
                 hour: "2-digit",

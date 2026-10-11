@@ -519,6 +519,110 @@ export function copyUpdateFiles(src: string, dest: string, isRoot = true): void 
   }
 }
 
+function safeDeleteFile(p: string): boolean {
+  try {
+    if (!fs.existsSync(p)) return false;
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      fs.rmSync(p, { force: true });
+    }
+    return !fs.existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Nettoie les artefacts obsolètes laissés par les mises à jour antérieures :
+ * 1. Fichiers JS/CSS compilés résiduels dans `dist/assets` non référencés par le `dist/index.html` actif.
+ * 2. Anciens exécutables renommés temporairement (*.exe.old) dans le dossier racine.
+ * 3. Fichiers ou répertoires temporaires d'installation abandonnés (update_temp.zip, update_extracted_temp, etc.).
+ */
+export function cleanupObsoleteArtifacts(appDir: string = process.cwd()): {
+  removedAssets: string[];
+  removedOldExecutables: string[];
+  removedTempFiles: string[];
+} {
+  const result = {
+    removedAssets: [] as string[],
+    removedOldExecutables: [] as string[],
+    removedTempFiles: [] as string[]
+  };
+
+  // 1. Nettoyage des anciens bundles d'actifs JS/CSS dans dist/assets
+  const distDir = path.join(appDir, "dist");
+  const assetsDir = path.join(distDir, "assets");
+  const indexHtmlPath = path.join(distDir, "index.html");
+
+  if (fs.existsSync(assetsDir) && fs.existsSync(indexHtmlPath)) {
+    try {
+      const indexHtmlContent = fs.readFileSync(indexHtmlPath, "utf-8");
+      const files = fs.readdirSync(assetsDir);
+      for (const file of files) {
+        if (/\.(js|css|map)$/i.test(file)) {
+          if (!indexHtmlContent.includes(file)) {
+            const filePath = path.join(assetsDir, file);
+            if (safeDeleteFile(filePath)) {
+              result.removedAssets.push(file);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("[Cleanup] Erreur lors du nettoyage de dist/assets :", err?.message || err);
+    }
+  }
+
+  // 2. Nettoyage des anciens exécutables renommés (*.exe.old)
+  const candidateDirs = [appDir, path.join(appDir, "..")];
+  const oldExeNames = [
+    "Évaluateur de Prix.exe.old",
+    "Évaluateur Insertech.exe.old"
+  ];
+
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of oldExeNames) {
+      const p = path.join(dir, name);
+      if (fs.existsSync(p)) {
+        if (safeDeleteFile(p)) {
+          result.removedOldExecutables.push(name);
+        }
+      }
+    }
+  }
+
+  // 3. Nettoyage des reliquats temporaires d'installation abandonnés
+  const tempItems = [
+    TEMP_ZIP_NAME,
+    TEMP_EXTRACT_DIR_NAME,
+    UPDATER_BAT_NAME,
+    RELAUNCH_VBS_NAME
+  ];
+
+  for (const item of tempItems) {
+    const p = path.join(appDir, item);
+    if (fs.existsSync(p)) {
+      try {
+        const stat = fs.statSync(p);
+        if (stat.isDirectory()) {
+          fs.rmSync(p, { recursive: true, force: true });
+        } else {
+          safeDeleteFile(p);
+        }
+        if (!fs.existsSync(p)) {
+          result.removedTempFiles.push(item);
+        }
+      } catch {
+        // Ignorer
+      }
+    }
+  }
+
+  return result;
+}
+
 // ─── Scripts de déploiement Windows ──────────────────────────────────────────
 
 export interface WindowsUpdaterOptions {
@@ -596,15 +700,22 @@ export function buildWindowsUpdaterScript(opts: WindowsUpdaterOptions): string {
     "goto RELAUNCH",
     ":COPY_OK",
     'echo [%DATE% %TIME%] Copie terminee (robocopy code %RC%). >> "%LOG_FILE%"',
+    'if exist "%SRC_DIR%\\app\\dist\\assets" (',
+    '  robocopy "%SRC_DIR%\\app\\dist\\assets" "%APP_DIR%\\dist\\assets" /PURGE /R:2 /W:1 /NP /NFL /NDL >> "%LOG_FILE%" 2>&1',
+    ') else if exist "%SRC_DIR%\\dist\\assets" (',
+    '  robocopy "%SRC_DIR%\\dist\\assets" "%APP_DIR%\\dist\\assets" /PURGE /R:2 /W:1 /NP /NFL /NDL >> "%LOG_FILE%" 2>&1',
+    ')',
     'if exist "%SRC_DIR%\\Évaluateur de Prix.exe" (',
     '  if exist "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" >nul 2>&1',
     '  move /y "%APP_DIR%\\..\\Évaluateur de Prix.exe" "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" >nul 2>&1',
     '  copy /y "%SRC_DIR%\\Évaluateur de Prix.exe" "%APP_DIR%\\..\\Évaluateur de Prix.exe" >> "%LOG_FILE%" 2>&1',
+    '  if exist "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur de Prix.exe.old" >nul 2>&1',
     ')',
     'if exist "%SRC_DIR%\\Évaluateur Insertech.exe" (',
     '  if exist "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
     '  move /y "%APP_DIR%\\..\\Évaluateur Insertech.exe" "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
     '  copy /y "%SRC_DIR%\\Évaluateur Insertech.exe" "%APP_DIR%\\..\\Évaluateur Insertech.exe" >> "%LOG_FILE%" 2>&1',
+    '  if exist "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" del /f /q "%APP_DIR%\\..\\Évaluateur Insertech.exe.old" >nul 2>&1',
     ')',
     `rmdir /s /q "%APP_DIR%\\${TEMP_EXTRACT_DIR_NAME}" >nul 2>&1`,
     `del /f /q "%APP_DIR%\\${TEMP_ZIP_NAME}" >nul 2>&1`,
@@ -768,6 +879,7 @@ export async function performApplicationUpdate(
 
     // Installation de développement, macOS ou Linux : copie directe, redémarrage manuel
     copyUpdateFiles(sourceDir, appDir);
+    cleanupObsoleteArtifacts(appDir);
     cleanupTemp();
     return {
       success: true,

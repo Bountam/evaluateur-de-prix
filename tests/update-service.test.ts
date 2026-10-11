@@ -12,6 +12,7 @@ import {
   validatePortablePackage,
   stripProtectedEntries,
   copyUpdateFiles,
+  cleanupObsoleteArtifacts,
   buildWindowsUpdaterScript,
   buildRelaunchVbsScript,
   PORTABLE_ASSET_NAME,
@@ -302,6 +303,10 @@ describe("Système de Mise à Jour Sécurisé (Audit & Durcissement)", () => {
       expect(script).toContain('/XD "%SRC_DIR%\\data" "%SRC_DIR%\\logs" "%SRC_DIR%\\exports" "%SRC_DIR%\\scraper-cache"');
       expect(script).toContain('/XF "%SRC_DIR%\\.env" "%SRC_DIR%\\db.json" "%SRC_DIR%\\.server.pid" "%SRC_DIR%\\.server.port"');
 
+      // Purge ciblée des anciens bundles JS/CSS obsolètes dans dist\assets
+      expect(script).toContain('/PURGE /R:2 /W:1');
+      expect(script).toContain('dist\\assets');
+
       // Port fixé et relance via VBScript invisible
       expect(script).toContain('set "PORT=3000"');
       expect(script).toContain("relaunch_server.vbs");
@@ -320,6 +325,73 @@ describe("Système de Mise à Jour Sécurisé (Audit & Durcissement)", () => {
       expect(vbs).toContain('nodeCmd = """" & appDir & "\\node.exe"""');
       // Auto-suppression du script temporaire
       expect(vbs).toContain("fso.DeleteFile WScript.ScriptFullName, True");
+    });
+  });
+
+  describe("7. Nettoyage Automatique des Artefacts Obsolètes (cleanupObsoleteArtifacts)", () => {
+    it("purge les anciens bundles JS et CSS obsolètes dans dist/assets non référencés dans index.html", () => {
+      const distDir = path.join(tempDir, "dist");
+      const assetsDir = path.join(distDir, "assets");
+      fs.mkdirSync(assetsDir, { recursive: true });
+
+      // Simuler index.html qui référence la version active
+      fs.writeFileSync(
+        path.join(distDir, "index.html"),
+        '<!DOCTYPE html><html><head><link rel="stylesheet" href="/assets/index-NEW_ACTIVE.css"></head>' +
+        '<body><script src="/assets/index-NEW_ACTIVE.js"></script></body></html>',
+        "utf-8"
+      );
+
+      // Créer les actifs actifs et les vieux actifs obsolètes
+      fs.writeFileSync(path.join(assetsDir, "index-NEW_ACTIVE.js"), "console.log('active');", "utf-8");
+      fs.writeFileSync(path.join(assetsDir, "index-NEW_ACTIVE.css"), "body{}", "utf-8");
+      fs.writeFileSync(path.join(assetsDir, "index-OLD_OBSOLETE_1.js"), "console.log('old 1');", "utf-8");
+      fs.writeFileSync(path.join(assetsDir, "index-OLD_OBSOLETE_2.css"), "body{}", "utf-8");
+      fs.writeFileSync(path.join(assetsDir, "index-OLD_OBSOLETE.js.map"), "{}", "utf-8");
+
+      const result = cleanupObsoleteArtifacts(tempDir);
+
+      expect(result.removedAssets).toEqual(expect.arrayContaining([
+        "index-OLD_OBSOLETE_1.js",
+        "index-OLD_OBSOLETE_2.css",
+        "index-OLD_OBSOLETE.js.map"
+      ]));
+      expect(result.removedAssets).not.toContain("index-NEW_ACTIVE.js");
+      expect(result.removedAssets).not.toContain("index-NEW_ACTIVE.css");
+
+      // Vérifier sur disque
+      expect(fs.existsSync(path.join(assetsDir, "index-NEW_ACTIVE.js"))).toBe(true);
+      expect(fs.existsSync(path.join(assetsDir, "index-NEW_ACTIVE.css"))).toBe(true);
+      expect(fs.existsSync(path.join(assetsDir, "index-OLD_OBSOLETE_1.js"))).toBe(false);
+      expect(fs.existsSync(path.join(assetsDir, "index-OLD_OBSOLETE_2.css"))).toBe(false);
+    });
+
+    it("supprime les anciens exécutables renommés (*.exe.old)", () => {
+      const oldExe1 = path.join(tempDir, "Évaluateur de Prix.exe.old");
+      const oldExe2 = path.join(tempDir, "Évaluateur Insertech.exe.old");
+      fs.writeFileSync(oldExe1, "fake exe 1", "utf-8");
+      fs.writeFileSync(oldExe2, "fake exe 2", "utf-8");
+
+      const result = cleanupObsoleteArtifacts(tempDir);
+
+      expect(result.removedOldExecutables).toContain("Évaluateur de Prix.exe.old");
+      expect(result.removedOldExecutables).toContain("Évaluateur Insertech.exe.old");
+      expect(fs.existsSync(oldExe1)).toBe(false);
+      expect(fs.existsSync(oldExe2)).toBe(false);
+    });
+
+    it("supprime les répertoires ou archives temporaires abandonnés", () => {
+      const tempZip = path.join(tempDir, "update_temp.zip");
+      const tempExtract = path.join(tempDir, "update_extracted_temp");
+      fs.writeFileSync(tempZip, "fake zip", "utf-8");
+      fs.mkdirSync(tempExtract, { recursive: true });
+
+      const result = cleanupObsoleteArtifacts(tempDir);
+
+      expect(result.removedTempFiles).toContain("update_temp.zip");
+      expect(result.removedTempFiles).toContain("update_extracted_temp");
+      expect(fs.existsSync(tempZip)).toBe(false);
+      expect(fs.existsSync(tempExtract)).toBe(false);
     });
   });
 });

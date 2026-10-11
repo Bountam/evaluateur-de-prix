@@ -86,6 +86,16 @@ namespace EvaluateurPrix
                     appDir = rootDir;
                 }
 
+                // 0. Nettoyer tout ancien exécutable renommé (*.exe.old) laissé par une mise à jour
+                try
+                {
+                    string oldExe1 = Path.Combine(rootDir, "Évaluateur de Prix.exe.old");
+                    if (File.Exists(oldExe1)) File.Delete(oldExe1);
+                    string oldExe2 = Path.Combine(rootDir, "Évaluateur Insertech.exe.old");
+                    if (File.Exists(oldExe2)) File.Delete(oldExe2);
+                }
+                catch { }
+
                 // 1. Nettoyer tout verrou antérieur éventuel
                 string pidFile = Path.Combine(appDir, ".server.pid");
                 string portFile = Path.Combine(appDir, ".server.port");

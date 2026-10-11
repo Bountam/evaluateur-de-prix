@@ -10,9 +10,20 @@ import { PORT, HOST, EXPORTS_DIR, PID_FILE, PORT_FILE, logger } from "./config/i
 import { apiLimiter } from "./middlewares/rateLimiters.ts";
 import { errorHandler } from "./middlewares/errorHandler.ts";
 import { setupGracefulShutdown, getIsShuttingDown } from "./services/lifecycle.service.ts";
+import { cleanupObsoleteArtifacts } from "./services/update.service.ts";
 import apiRouter from "./routes/index.ts";
 
 export async function createApp() {
+  // Nettoyage automatique des vieux artefacts obsolètes de mises à jour antérieures
+  try {
+    const cleaned = cleanupObsoleteArtifacts();
+    if (cleaned.removedAssets.length > 0 || cleaned.removedOldExecutables.length > 0 || cleaned.removedTempFiles.length > 0) {
+      logger.info(`[Cleanup] Nettoyage au démarrage : ${cleaned.removedAssets.length} actif(s) JS/CSS obsolète(s), ${cleaned.removedOldExecutables.length} ancien(s) .exe, ${cleaned.removedTempFiles.length} fichier(s) temporaire(s).`);
+    }
+  } catch (err: any) {
+    logger.warn(`[Cleanup] Avertissement lors du nettoyage : ${err?.message || err}`);
+  }
+
   const app = express();
 
   app.use(helmet({ contentSecurityPolicy: false }));

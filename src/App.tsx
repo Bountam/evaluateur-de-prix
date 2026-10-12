@@ -27,6 +27,7 @@ import {
 import Logo from "./components/Logo";
 import SettingsTab from "./components/SettingsTab";
 import HelpTooltip from "./components/common/HelpTooltip";
+import ClockHeader from "./components/common/ClockHeader";
 import { HELP_CONTENT } from "./constants/helpContent";
 
 function getStoredValue(key: string, defaultValue = ""): string {
@@ -81,10 +82,9 @@ export default function App() {
   const [historicalLog, setHistoricalLog] = useState<HistoricalLogEntry[]>([]);
   const [customModels, setCustomModels] = useState<{ category: string; modelName: string }[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion, setAppVersion] = useState("1.8.0");
+  const [appVersion, setAppVersion] = useState("1.9.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Opérateur & Modals de Session ---
@@ -136,12 +136,6 @@ export default function App() {
 
   // -------------------------------------------------------
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const allModelsByCat = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -638,15 +632,7 @@ export default function App() {
               <HelpTooltip topic={HELP_CONTENT.operatorSwitch} size="xs" side="bottom" id="operatorSwitch" />
             </div>
 
-            <span className="inline-flex items-center space-x-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-sm text-slate-300">
-              <span className="font-semibold select-all">
-                {currentTime.toLocaleDateString("fr-CA", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                }).toUpperCase()}{" - "}{currentTime.toLocaleTimeString("fr-CA")}
-              </span>
-            </span>
+            <ClockHeader />
 
             <div className="inline-flex items-center space-x-1">
               <button

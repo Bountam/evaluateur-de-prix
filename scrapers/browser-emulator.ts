@@ -10,7 +10,6 @@ import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const PROFILE_DIR = path.join(PROJECT_ROOT, 'data', 'puppeteer_profile');
 
 // Activer le plugin stealth sur l'instance Playwright-Chromium
 // @ts-ignore - Résout la compatibilité de types entre puppeteer-extra-plugin et playwright-extra
@@ -102,8 +101,6 @@ export async function getSharedBrowser(): Promise<any> {
       '--disable-accelerated-2d-canvas',
       '--disable-infobars',
       '--window-position=0,0',
-      '--ignore-certificate-errors',
-      '--ignore-certificate-errors-spki-list',
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process,MediaRouter,CalculateNativeWinOcclusion,CertificateTransparencyComponentUpdater',
       '--blink-settings=imagesEnabled=false',

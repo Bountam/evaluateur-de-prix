@@ -16,13 +16,18 @@ router.get("/api/state", (_req, res) => {
 
 // Ajout dynamique d'un nouveau modèle avec garantie zéro-perte
 router.post("/api/models/add", async (req, res) => {
-  const { category, modelName, _chassisCode, configuration } = req.body;
+  const { category, modelName, configuration } = req.body;
   if (!category || !modelName || !modelName.trim()) {
     res.status(400).json({ success: false, message: "La catégorie et le nom du modèle sont obligatoires." });
     return;
   }
 
   const cleanModel = modelName.trim();
+  const lowerModel = cleanModel.toLowerCase();
+  if (lowerModel === "__proto__" || lowerModel === "constructor" || lowerModel === "prototype") {
+    res.status(400).json({ success: false, message: "Nom de modèle non autorisé." });
+    return;
+  }
   const normalizedCategory = normalizeCategory(category);
   let dbResult: any = null;
 
@@ -93,30 +98,34 @@ router.post("/api/reset", async (_req, res) => {
 });
 
 // Purge complète de toutes les évaluations et logs
-router.post("/api/purge-all", (_req, res) => {
-  const db = readDB();
-  if (db.evaluations) {
-    Object.keys(db.evaluations).forEach(key => {
-      const meta = getModelMeta(key);
-      db.evaluations[key] = {
-        modelName: key,
-        category: db.evaluations[key].category || "Autre",
-        medianPrice: 0,
-        confidence: "Aucun",
-        comparablesCount: 0,
-        lastScraped: "",
-        listings: [],
-        configuration: db.evaluations[key].configuration || meta.configuration,
-        condition: db.evaluations[key].condition || meta.condition,
-        commentaires: db.evaluations[key].commentaires || meta.commentaires,
-        historicalPrices: []
-      };
-    });
-  }
+router.post("/api/purge-all", async (_req, res) => {
+  let dbResult: any = null;
+  await withDBLock(async () => {
+    const db = readDB();
+    if (db.evaluations) {
+      Object.keys(db.evaluations).forEach(key => {
+        const meta = getModelMeta(key);
+        db.evaluations[key] = {
+          modelName: key,
+          category: db.evaluations[key].category || "Autre",
+          medianPrice: 0,
+          confidence: "Aucun",
+          comparablesCount: 0,
+          lastScraped: "",
+          listings: [],
+          configuration: db.evaluations[key].configuration || meta.configuration,
+          condition: db.evaluations[key].condition || meta.condition,
+          commentaires: db.evaluations[key].commentaires || meta.commentaires,
+          historicalPrices: []
+        };
+      });
+    }
 
-  db.historicalLog = [];
-  writeDB(db);
-  invalidateStateCache();
+    db.historicalLog = [];
+    writeDB(db);
+    invalidateStateCache();
+    dbResult = db;
+  });
 
   try {
     clearAllCache();
@@ -127,8 +136,8 @@ router.post("/api/purge-all", (_req, res) => {
   res.json({
     success: true,
     message: "Toutes les évaluations et l'historique ont été purgés avec succès.",
-    evaluations: db.evaluations,
-    historicalLog: db.historicalLog
+    evaluations: dbResult.evaluations,
+    historicalLog: dbResult.historicalLog
   });
 });
 

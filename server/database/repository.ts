@@ -159,14 +159,11 @@ export function sanitizeDB(db: AppState): { db: AppState; changed: boolean } {
   return { db, changed };
 }
 
-// Fonction de lecture de la base de données avec assainissement si nécessaire
+// Fonction de lecture de la base de données avec assainissement en mémoire (respect du principe CQS)
 export function readDB(): AppState {
   const db = readDBRaw();
-  const { changed } = sanitizeDB(db);
-  if (changed) {
-    writeDB(db);
-  }
-  return db;
+  const { db: sanitized } = sanitizeDB(db);
+  return sanitized;
 }
 
 export function writeDB(data: any) {

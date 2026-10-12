@@ -61,33 +61,46 @@ router.get("/api/download-template", async (_req, res) => {
 });
 
 // Prévisualisation des données avant confirmation d'importation
-router.post("/api/import-preview", async (req, res) => {
+router.post("/api/import-preview", intensiveLimiter, async (req, res) => {
   try {
     const { fileData } = req.body;
-    const workbook = new ExcelJS.Workbook();
 
     if (fileData) {
       const cleanBase64 = fileData.replace(/^data:.*;base64,/, "");
       const buffer = Buffer.from(cleanBase64, "base64");
+
+      if (buffer.length > 20 * 1024 * 1024) {
+        res.status(400).json({ success: false, message: "Le fichier dépasse la taille maximale autorisée (20 Mo)." });
+        return;
+      }
 
       if (buffer.length < 4 || buffer.readUInt32BE(0) !== 0x504B0304) {
         res.status(400).json({ success: false, message: "Format de fichier invalide. Veuillez fournir un fichier Excel (.xlsx) valide." });
         return;
       }
 
-      await workbook.xlsx.load(buffer);
+      const workbook = new ExcelJS.Workbook();
+      try {
+        await workbook.xlsx.load(buffer);
+      } catch {
+        res.status(400).json({ success: false, message: "Impossible de lire le contenu Excel. Le fichier est probablement corrompu." });
+        return;
+      }
+
+      const preview = processImportPreview(workbook);
+      res.json(preview);
     } else {
       const masterPath = path.join(EXPORTS_DIR, MASTER_FILE_NAME);
       if (fs.existsSync(masterPath)) {
+        const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(masterPath);
+        const preview = processImportPreview(workbook);
+        res.json(preview);
       } else {
         res.status(400).json({ success: false, message: `Aucun fichier maître ${MASTER_FILE_NAME} trouvé sur le serveur.` });
         return;
       }
     }
-
-    const preview = processImportPreview(workbook);
-    res.json(preview);
   } catch (err: any) {
     console.error("Error generating import preview:", err);
     res.status(500).json({ success: false, message: `Erreur lors de la lecture du fichier : ${err.message}` });

@@ -111,31 +111,26 @@ const ANOMALY_KEYWORDS = [
  * Calcul statistique des valeurs aberrantes (Outliers) via la méthode IQR (Interquartile Range)
  */
 export function flagOutliers(listings: ScrapedListing[]): ScrapedListing[] {
-  let flagged = listings.map(l => {
+  const prices: number[] = [];
+  const flagged = listings.map(l => {
     const titleLower = l.title.toLowerCase();
-    if (ANOMALY_KEYWORDS.some(regex => regex.test(titleLower))) {
+    const isKeywordOutlier = ANOMALY_KEYWORDS.some(regex => regex.test(titleLower));
+    if (isKeywordOutlier) {
       return { ...l, isOutlier: true, included: false };
+    }
+    if (l.included !== false) {
+      prices.push(l.price);
     }
     return l;
   });
-
-  if (flagged.length < 4) {
-    return flagged;
-  }
-
-  const prices = flagged
-    .filter(l => !l.isOutlier && l.included !== false)
-    .map(l => l.price)
-    .sort((a, b) => a - b);
 
   if (prices.length < 4) {
     return flagged;
   }
 
-  const q1Index = Math.floor(prices.length * 0.25);
-  const q3Index = Math.floor(prices.length * 0.75);
-  const q1 = prices[q1Index];
-  const q3 = prices[q3Index];
+  prices.sort((a, b) => a - b);
+  const q1 = prices[Math.floor(prices.length * 0.25)];
+  const q3 = prices[Math.floor(prices.length * 0.75)];
   const iqr = q3 - q1;
 
   const lowerBound = Math.max(15, q1 - 1.5 * iqr);
@@ -259,9 +254,10 @@ export async function orchestrateScraping(
   customConcurrency?: number
 ): Promise<OrchestratedResult> {
   const timestamp = new Date().toISOString();
-  const searchModel = normalizeModelName(model);
-  if (searchModel !== model) {
-    log(`🔄 [Orchestrateur] Normalisation de l'alias : "${model}" → "${searchModel}"`);
+  const sanitizedModel = String(model || "").slice(0, 100).replace(/[\x00-\x1F\x7F]/g, "").trim();
+  const searchModel = normalizeModelName(sanitizedModel);
+  if (searchModel !== sanitizedModel) {
+    log(`🔄 [Orchestrateur] Normalisation de l'alias : "${sanitizedModel}" → "${searchModel}"`);
   }
 
   const systemCores = os.cpus()?.length || 4;

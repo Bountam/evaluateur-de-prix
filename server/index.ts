@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import os from "os";
 import { exec } from "child_process";
 import helmet from "helmet";
 import compression from "compression";
@@ -46,17 +45,35 @@ export async function createApp() {
   app.use(express.json({ limit: "20mb" }));
   app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
-  // Support CORS sécurisé (mode développement & file:// local)
+  // Support CORS sécurisé (mode développement & loopback local strict)
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (!origin || origin === "null" || origin.startsWith("file://") || origin.includes("localhost") || origin.includes("127.0.0.1")) {
-      res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    let isAllowed = false;
+
+    if (!origin || origin === "null" || origin.startsWith("file://")) {
+      isAllowed = true;
     } else {
-      res.setHeader("Access-Control-Allow-Origin", origin);
+      try {
+        const parsed = new URL(origin);
+        isAllowed = parsed.hostname === "localhost" ||
+                    parsed.hostname === "127.0.0.1" ||
+                    parsed.hostname === "::1";
+      } catch {
+        isAllowed = false;
+      }
     }
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (isAllowed) {
+      res.setHeader("Access-Control-Allow-Origin", origin || "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+
     if (req.method === "OPTIONS") {
+      if (!isAllowed) {
+        res.status(403).send("Origine non autorisée.");
+        return;
+      }
       res.sendStatus(200);
       return;
     }
@@ -131,7 +148,7 @@ export async function createApp() {
   return app;
 }
 
-export function listenOnAvailablePort(app: express.Express, port: number, host = HOST) {
+export function listenOnAvailablePort(app: express.Express, port: number, host = HOST, attempts = 0) {
   // En mode production / portable, verrouiller strictement sur 127.0.0.1 (Loopback exclusif)
   // pour garantir ZÉRO invite du pare-feu Windows et un fonctionnement 100% sans privilèges administrateur
   const effectiveHost = (process.env.NODE_ENV === "production" || !host || host === "0.0.0.0")
@@ -166,8 +183,12 @@ export function listenOnAvailablePort(app: express.Express, port: number, host =
 
   server.on("error", (err: any) => {
     if (err.code === "EADDRINUSE") {
-      console.log(`⚠️ Le port ${port} est déjà occupé. Basculement automatique sur le port ${port + 1}...`);
-      listenOnAvailablePort(app, port + 1, host);
+      if (attempts < 10) {
+        console.log(`⚠️ Le port ${port} est déjà occupé. Basculement automatique sur le port ${port + 1} (tentative ${attempts + 1}/10)...`);
+        listenOnAvailablePort(app, port + 1, host, attempts + 1);
+      } else {
+        console.error(`❌ Échec : 10 ports consécutifs occupés à partir du port initial. Arrêt.`);
+      }
     } else {
       console.error("❌ Erreur au démarrage du serveur :", err);
     }

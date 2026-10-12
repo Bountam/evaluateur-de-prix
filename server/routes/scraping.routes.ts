@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { readDB, writeDB } from "../database/repository.ts";
-import { getModelMeta } from "../config/index.ts";
+import { readDB, writeDB, withDBLock } from "../database/repository.ts";
 import { intensiveLimiter } from "../middlewares/rateLimiters.ts";
 import { runBackgroundScraping, getActiveJob } from "../services/scraper.service.ts";
 import { clearCacheForModel, clearCacheForSource } from "../../scrapers/cache.ts";
@@ -9,24 +8,24 @@ import { calculateMedian, determineConfidence } from "../../scrapers/orchestrato
 const router = Router();
 
 // Démarrer une collecte multi-sources en arrière-plan
-router.post("/api/scrape", intensiveLimiter, (req, res) => {
+router.post("/api/scrape", intensiveLimiter, async (req, res) => {
   const { model, category, simulateFailure, operator, concurrency } = req.body;
 
-  const db = readDB();
-  // Purger l'évaluation du modèle en cours de rafraîchissement
-  if (db.evaluations && db.evaluations[model]) {
-    const _meta = getModelMeta(model);
-    db.evaluations[model] = {
-      ...db.evaluations[model],
-      medianPrice: 0,
-      confidence: "Aucun",
-      comparablesCount: 0,
-      lastScraped: "",
-      listings: []
-    };
-  }
-
-  writeDB(db);
+  await withDBLock(async () => {
+    const db = readDB();
+    // Purger l'évaluation du modèle en cours de rafraîchissement
+    if (db.evaluations && db.evaluations[model]) {
+      db.evaluations[model] = {
+        ...db.evaluations[model],
+        medianPrice: 0,
+        confidence: "Aucun",
+        comparablesCount: 0,
+        lastScraped: "",
+        listings: []
+      };
+      writeDB(db);
+    }
+  });
 
   runBackgroundScraping(
     model,
@@ -83,84 +82,100 @@ router.get("/api/scrape/status", (req, res) => {
 });
 
 // Mise à jour manuelle d'une annonce (inclusion/exclusion ou ajustement de prix)
-router.post("/api/evaluations/update-listing", (req, res) => {
+router.post("/api/evaluations/update-listing", async (req, res) => {
   const { modelName, listingId, included, price, operator } = req.body;
-  const db = readDB();
+  let updatedEvaluation: any = null;
 
-  if (db.evaluations && db.evaluations[modelName]) {
-    const evaluation = db.evaluations[modelName];
-    const previousPrice = evaluation.medianPrice;
-    const listing = evaluation.listings.find((l: any) => l.id === listingId);
+  await withDBLock(async () => {
+    const db = readDB();
 
-    if (listing) {
-      if (included !== undefined) listing.included = included;
-      if (price !== undefined) listing.price = Number(price);
+    if (db.evaluations && db.evaluations[modelName]) {
+      const evaluation = db.evaluations[modelName];
+      const previousPrice = evaluation.medianPrice;
+      const listing = evaluation.listings.find((l: any) => l.id === listingId);
 
-      // Recalcul en temps réel de la médiane et de l'indice de confiance
-      const median = calculateMedian(evaluation.listings as any);
-      evaluation.medianPrice = median;
-      evaluation.comparablesCount = evaluation.listings.filter((l: any) => l.included && !l.isOutlier).length;
-      const activeSourcesCount = new Set(
-        evaluation.listings.filter((l: any) => l.included && !l.isOutlier).map((l: any) => l.sourceKey || l.source)
-      ).size;
-      evaluation.confidence = determineConfidence(evaluation.listings as any, Math.max(2, activeSourcesCount));
+      if (listing) {
+        if (included !== undefined) listing.included = included;
+        if (price !== undefined) listing.price = Number(price);
 
-      if (previousPrice !== median) {
-        if (!db.historicalLog) db.historicalLog = [];
-        db.historicalLog.unshift({
-          id: `log-manual-${Date.now()}`,
-          date: new Date().toISOString(),
-          model: modelName,
-          action: "Ajustement manuel comparables",
-          previousPrice,
-          currentPrice: median,
-          operator: operator || "Inconnu"
-        });
+        // Recalcul en temps réel de la médiane et de l'indice de confiance
+        const median = calculateMedian(evaluation.listings as any);
+        evaluation.medianPrice = median;
+        evaluation.comparablesCount = evaluation.listings.filter((l: any) => l.included && !l.isOutlier).length;
+        const activeSourcesCount = new Set(
+          evaluation.listings.filter((l: any) => l.included && !l.isOutlier).map((l: any) => l.sourceKey || l.source)
+        ).size;
+        evaluation.confidence = determineConfidence(evaluation.listings as any, Math.max(2, activeSourcesCount));
 
-        const historicalPrices = evaluation.historicalPrices || [];
-        const lastHist = historicalPrices[historicalPrices.length - 1];
-        if (!lastHist || lastHist.price !== previousPrice) {
-          historicalPrices.push({
-            date: evaluation.lastScraped || new Date().toISOString(),
-            price: previousPrice
+        if (previousPrice !== median) {
+          if (!db.historicalLog) db.historicalLog = [];
+          db.historicalLog.unshift({
+            id: `log-manual-${Date.now()}`,
+            date: new Date().toISOString(),
+            model: modelName,
+            action: "Ajustement manuel comparables",
+            previousPrice,
+            currentPrice: median,
+            operator: operator || "Inconnu"
           });
-        }
-        evaluation.historicalPrices = historicalPrices;
-      }
 
-      writeDB(db);
-      res.json({ success: true, evaluation });
-      return;
+          const historicalPrices = evaluation.historicalPrices || [];
+          const lastHist = historicalPrices[historicalPrices.length - 1];
+          if (!lastHist || lastHist.price !== previousPrice) {
+            historicalPrices.push({
+              date: evaluation.lastScraped || new Date().toISOString(),
+              price: previousPrice
+            });
+          }
+          evaluation.historicalPrices = historicalPrices;
+        }
+
+        writeDB(db);
+        updatedEvaluation = evaluation;
+      }
     }
+  });
+
+  if (updatedEvaluation) {
+    res.json({ success: true, evaluation: updatedEvaluation });
+    return;
   }
 
   res.status(404).json({ success: false, message: "Modèle ou comparable introuvable." });
 });
 
 // Mise à jour des métadonnées d'une évaluation (configuration, condition, commentaires)
-router.post("/api/evaluations/update-meta", (req, res) => {
+router.post("/api/evaluations/update-meta", async (req, res) => {
   const { modelName, configuration, condition, commentaires, operator } = req.body;
-  const db = readDB();
+  let updatedEvaluation: any = null;
 
-  if (db.evaluations && db.evaluations[modelName]) {
-    const evaluation = db.evaluations[modelName];
-    if (configuration !== undefined) evaluation.configuration = configuration;
-    if (condition !== undefined) evaluation.condition = condition;
-    if (commentaires !== undefined) evaluation.commentaires = commentaires;
+  await withDBLock(async () => {
+    const db = readDB();
 
-    if (!db.historicalLog) db.historicalLog = [];
-    db.historicalLog.unshift({
-      id: `log-meta-${Date.now()}`,
-      date: new Date().toISOString(),
-      model: modelName,
-      action: "Mise à jour spécifications",
-      previousPrice: evaluation.medianPrice,
-      currentPrice: evaluation.medianPrice,
-      operator: operator || "Inconnu"
-    });
+    if (db.evaluations && db.evaluations[modelName]) {
+      const evaluation = db.evaluations[modelName];
+      if (configuration !== undefined) evaluation.configuration = configuration;
+      if (condition !== undefined) evaluation.condition = condition;
+      if (commentaires !== undefined) evaluation.commentaires = commentaires;
 
-    writeDB(db);
-    res.json({ success: true, evaluation });
+      if (!db.historicalLog) db.historicalLog = [];
+      db.historicalLog.unshift({
+        id: `log-meta-${Date.now()}`,
+        date: new Date().toISOString(),
+        model: modelName,
+        action: "Mise à jour spécifications",
+        previousPrice: evaluation.medianPrice,
+        currentPrice: evaluation.medianPrice,
+        operator: operator || "Inconnu"
+      });
+
+      writeDB(db);
+      updatedEvaluation = evaluation;
+    }
+  });
+
+  if (updatedEvaluation) {
+    res.json({ success: true, evaluation: updatedEvaluation });
     return;
   }
 

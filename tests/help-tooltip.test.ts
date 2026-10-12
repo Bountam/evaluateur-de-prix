@@ -62,9 +62,9 @@ describe("Bulles d'Aide Contextuelles Interactives (Jalon v1.6.0)", () => {
     const meta = JSON.parse(fs.readFileSync(path.join(process.cwd(), "metadata.json"), "utf-8"));
     const manifest = fs.readFileSync(path.join(process.cwd(), "launcher", "app.manifest"), "utf-8");
 
-    expect(pkg.version).toBe("1.8.0");
-    expect(meta.version).toBe("1.8.0");
-    expect(manifest).toContain('version="1.8.0.0"');
+    expect(pkg.version).toBe("1.9.0");
+    expect(meta.version).toBe("1.9.0");
+    expect(manifest).toContain('version="1.9.0.0"');
   });
 
   it("vérifie que le composant HelpTooltip existe et définit les gestionnaires de clic et d'échappement", () => {

@@ -102,11 +102,14 @@ async function main() {
 
   const releaseTitle = `Évaluateur de Prix ${tag}`;
   const releaseBody = `### Nouveautés de la version ${tag} :
-- **Bulles d'aide interactives contextuelles (\`?\`)** : Intégration de points d'interrogation cliquables sur l'ensemble de l'interface (entête, navigation, volet latéral, cartes statistiques, filtres et tableau comparatif) avec explications métier et astuces pratiques en français.
-- **Image de marque & Marque blanche dynamique** : Personnalisation complète du nom d'organisation, slogan et logo (sauvegardé en base de données SQLite et synchronisé dans les exports Excel).
-- **Garantie zéro-permission & Manifeste non-admin** : Lanceur natif Windows (\`Évaluateur de Prix.exe\`) avec manifeste standard \`asInvoker\` ne requérant aucun droit administrateur ni invite UAC.
-- **Double archive pour rétrocompatibilité totale** : Les versions antérieures (v1.4.1, v1.5.0, v1.5.1, v1.5.2) peuvent se mettre à jour automatiquement et sans interruption.
-- **Stabilité & Robustesse** : 100% des tests validés (111 tests), isolation de l'arborescence technique dans \`app/\` et fermeture gracieuse.`;
+- **Nouvel onglet PARAMÈTRES & Épuration de l'en-tête** : Centralisation complète des préférences d'affichage (sélecteur visuel ☀️ Clair / 🌙 Sombre), du contrôle de puissance CPU (concurrence de 1 à 16 scrapers simultanés), de l'image de marque (marque blanche) et de l'architecture des sources. L'en-tête est épuré pour se concentrer sur l'essentiel.
+- **Suppression de l'onglet GCSurplus** : Interface allégée et navigation simplifiée.
+- **Nettoyage automatique des vieux artefacts** : Purge automatique des anciens bundles JS/CSS (\`dist/assets/\`), élimination sécurisée des fichiers obsolètes (\`*.exe.old\`) et des reliquats de mise à jour.
+- **Ajout simplifié de modèles** : Parser intelligent de désignations d'inventaire, autocomplétion catalogue et ajout 1-clic depuis le volet latéral.
+- **Bulles d'aide interactives contextuelles (\`?\`)** : Explications complètes et astuces métier intégrées à chaque fonctionnalité.
+- **Garantie zéro-permission & Manifeste non-admin** : Lanceur Windows natif autonome (\`asInvoker\`) sans élévation de privilèges.
+- **Double archive de mise à jour** : Déploiement simultané pour toutes les versions antérieures (\`evaluateur-de-prix-portable.zip\` et \`evaluateur-insertech-portable.zip\`).
+- **Fiabilité éprouvée** : 134 tests unitaires et d'intégration réussis à 100%.`;
 
   if (relRes.status === 404) {
     console.log(`✨ Release ${tag} inexistante. Création automatique de la release sur GitHub...`);

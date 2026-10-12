@@ -84,7 +84,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // --- Système de version & Mises à jour ---
-  const [appVersion, setAppVersion] = useState("1.7.0");
+  const [appVersion, setAppVersion] = useState("1.8.0");
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // --- Opérateur & Modals de Session ---

@@ -102,14 +102,11 @@ async function main() {
 
   const releaseTitle = `Évaluateur de Prix ${tag}`;
   const releaseBody = `### Nouveautés de la version ${tag} :
-- **Nouvel onglet PARAMÈTRES & Épuration de l'en-tête** : Centralisation complète des préférences d'affichage (sélecteur visuel ☀️ Clair / 🌙 Sombre), du contrôle de puissance CPU (concurrence de 1 à 16 scrapers simultanés), de l'image de marque (marque blanche) et de l'architecture des sources. L'en-tête est épuré pour se concentrer sur l'essentiel.
-- **Suppression de l'onglet GCSurplus** : Interface allégée et navigation simplifiée.
-- **Nettoyage automatique des vieux artefacts** : Purge automatique des anciens bundles JS/CSS (\`dist/assets/\`), élimination sécurisée des fichiers obsolètes (\`*.exe.old\`) et des reliquats de mise à jour.
-- **Ajout simplifié de modèles** : Parser intelligent de désignations d'inventaire, autocomplétion catalogue et ajout 1-clic depuis le volet latéral.
-- **Bulles d'aide interactives contextuelles (\`?\`)** : Explications complètes et astuces métier intégrées à chaque fonctionnalité.
-- **Garantie zéro-permission & Manifeste non-admin** : Lanceur Windows natif autonome (\`asInvoker\`) sans élévation de privilèges.
-- **Double archive de mise à jour** : Déploiement simultané pour toutes les versions antérieures (\`evaluateur-de-prix-portable.zip\` et \`evaluateur-insertech-portable.zip\`).
-- **Fiabilité éprouvée** : 134 tests unitaires et d'intégration réussis à 100%.`;
+- **Sécurité & Durcissement** : Validation stricte des origines CORS (\`localhost\`, \`127.0.0.1\`, \`file://\`, blocage 403 sur pré-vols non autorisés), protection anti-OOM/DoS sur \`/api/import-preview\` (plafond 20 Mo et limiteur intensif), blocage des attaques par pollution de prototype (\`__proto__\`, \`constructor\`) sur \`/api/models/add\`, retrait des flags Chromium non sécurisés et assainissement ReDoS des expressions régulières de scraping.
+- **Résilience & Gestion SQLite** : Sérialisation universelle des écritures concurrentes via verrou exclusif (\`withDBLock\`), respect strict du principe CQS dans \`readDB()\` sans écriture parasite en lecture, et bornage du repli de port dynamique à 10 tentatives max.
+- **Performances & Fluidité UI** : Isolation complète du cycle de rendu de l'horloge via le composant \`ClockHeader\` (élimination du re-render complet de l'interface chaque seconde), optimisation de l'algorithme IQR de détection des prix aberrants et suppression de code mort.
+- **Validation & Fiabilité** : 144/144 tests unitaires, d'intégration et de sécurité validés avec succès (100% de réussite).
+- **Double archive de mise à jour** : Déploiement simultané pour toutes les versions antérieures (\`evaluateur-de-prix-portable.zip\` et \`evaluateur-insertech-portable.zip\`).`;
 
   if (relRes.status === 404) {
     console.log(`✨ Release ${tag} inexistante. Création automatique de la release sur GitHub...`);
